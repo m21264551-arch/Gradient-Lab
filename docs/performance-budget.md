@@ -9,14 +9,13 @@
 
 These budgets are intentionally tight for a portfolio visualization. The app should stay fast enough to load comfortably on static hosting and remain easy to inspect in a recruiter review.
 
-## Lighthouse Budgets
+## Runtime Quality Checks
 
-| Category | Minimum Score | Enforced By |
-| --- | ---: | --- |
-| Performance | 90 | `npm run perf` |
-| Accessibility | 95 | `npm run perf` and Playwright axe tests |
-| Best Practices | 90 | `npm run perf` |
-| SEO | 90 | `npm run perf` |
+| Check | Enforced By |
+| --- | --- |
+| Accessibility regressions | `npm run test:a11y` |
+| Core interaction regressions | `npm run test:e2e` |
+| Visual regressions | `npm run test:visual` |
 
 ## Optimization Notes
 

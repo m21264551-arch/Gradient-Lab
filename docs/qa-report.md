@@ -62,12 +62,11 @@ Passing signal: the tester completes tasks 1-7 without confusion, can describe t
 - Visual baselines are Chromium-only to reduce noisy cross-browser canvas/font diffs.
 - The keyboard-only tab path is validated in Chromium and Firefox. macOS WebKit skips that specific assertion because buttons are not tabbable unless Full Keyboard Access is enabled at the OS level.
 - The app has no backend persistence; every run is local and deterministic except manually generated new paths.
-- Lighthouse CI depends on local/CI Chrome availability.
 
 ## Acceptance Criteria
 
 - `npm run qa` passes.
-- Production audit remains clean with `npm audit --omit=dev`.
-- Lighthouse scores meet the documented thresholds.
+- Dependency audit remains clean with `npm audit`.
+- Bundle budgets pass with `npm run budget`.
 - Browser-level smoke tests pass in Chromium, Firefox, and WebKit.
 - QA docs are updated whenever a new major control, objective, optimizer, or visualization mode is added.
