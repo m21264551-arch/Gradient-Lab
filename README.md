@@ -1,12 +1,23 @@
 # Gradient Lab
 
-An interactive gradient descent visualizer for a machine-learning portfolio.
+Gradient Lab is an interactive gradient descent visualizer built with React, Vite, SVG, and Canvas.
 
 [Live demo](https://data-visualisation-gamma.vercel.app)
 
-Visitors can switch loss surfaces, optimizers, learning rate, momentum, noise, and playback speed while watching the optimizer path move across a loss landscape. The app is built with React, Vite, SVG, and Canvas.
+The app lets visitors change the loss surface, optimizer, learning rate, momentum, noise, speed, and view mode while the optimizer path moves across the landscape.
 
-The interactive playground is followed by a learning guide that explains gradient descent, how to use the controls, what the visuals and metrics mean, and common FAQ answers.
+## Why this project exists
+
+I built this as a small teaching tool and portfolio piece. It turns a topic that often sits in equations into something you can poke at directly.
+
+## Features
+
+- Rosenbrock, elliptic bowl, saddle, and other objective surfaces
+- Gradient descent, momentum, and Adam simulations
+- 3D-style landscape view and contour view
+- Live metrics for loss, gradient size, step count, and run status
+- Below-the-playground guide for the core concepts
+- Unit, accessibility, visual, and browser tests
 
 ## Run locally
 
@@ -27,18 +38,14 @@ npm run perf
 npm run qa
 ```
 
-Visual regression baselines are Chromium snapshots generated on macOS, matching the GitHub Actions runner in `.github/workflows/ci.yml`.
-
 ## Deploy
 
-This app is configured for Vercel in `vercel.json`.
+The app is configured for Vercel in `vercel.json`.
 
 - Framework: Vite
 - Install command: `npm install`
 - Build command: `npm run build`
 - Output directory: `dist`
-
-Deploy from the linked project with:
 
 ```bash
 vercel build
