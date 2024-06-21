@@ -1,0 +1,11 @@
+.git
+.github
+assets/design-reference
+docs
+tests
+playwright-report
+test-results
+coverage
+node_modules
+dist
+*.log
