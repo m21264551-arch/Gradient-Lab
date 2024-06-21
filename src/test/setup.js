@@ -41,6 +41,9 @@ globalThis.ResizeObserver = class ResizeObserver {
 };
 
 const canvasContext = {
+  rect: vi.fn(),
+  clip: vi.fn(),
+  setLineDash: vi.fn(),
   arc: vi.fn(),
   beginPath: vi.fn(),
   clearRect: vi.fn(),

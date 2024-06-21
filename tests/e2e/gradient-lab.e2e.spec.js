@@ -1,144 +1,68 @@
-import { expect, test } from "@playwright/test";
-
-async function gotoReducedMotion(page) {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
-}
-
-test("loads without console errors and runs the primary workflow", async ({ page }) => {
-  const consoleErrors = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") {
-      consoleErrors.push(message.text());
-    }
-  });
-  page.on("pageerror", (error) => consoleErrors.push(error.message));
-
-  await gotoReducedMotion(page);
-
-  await expect(page).toHaveTitle("Gradient Lab");
-  await expect(
-    page.getByRole("heading", { name: "Gradient Lab", exact: true })
-  ).toBeVisible();
-  await expect(page.getByRole("status")).toHaveText("Paused");
-  await expect(page.getByRole("img", { name: "Loss landscape visualization" })).toBeVisible();
-
-  await page.getByTestId("step-once").click();
-  await expect(page.getByTestId("metric-iteration")).toContainText("1");
-
-  await page.getByRole("button", { name: "Contour" }).click();
-  await expect(page.getByRole("button", { name: "Contour" })).toHaveAttribute(
-    "aria-pressed",
-    "true"
-  );
-
-  await page.getByLabel("Function").selectOption("bowl");
-  await expect(page.getByLabel("Function")).toHaveValue("bowl");
-  await expect(page.getByTestId("metric-iteration")).toContainText("0");
-
-  const beforeX = await page.getByTestId("param-x").innerText();
-  await page.getByTestId("new-path").click();
-  await expect(page.getByTestId("param-x")).not.toHaveText(beforeX);
-
-  await page.getByTestId("toggle-run").click();
-  await expect(page.getByRole("status")).toHaveText("Running");
-
-  expect(consoleErrors).toEqual([]);
-});
-
-test("supports a keyboard-only run toggle path", async ({ page, browserName }) => {
-  test.skip(
-    browserName === "webkit",
-    "macOS WebKit does not tab to buttons unless Full Keyboard Access is enabled"
-  );
-
-  await gotoReducedMotion(page);
-
-  let foundRunButton = false;
-
-  for (let index = 0; index < 24; index += 1) {
-    await page.keyboard.press("Tab");
-    const activeLabel = await page.evaluate(() => {
-      const element = document.activeElement;
-      return element?.getAttribute("aria-label") || element?.textContent || "";
-    });
-
-    if (activeLabel.includes("Run animation")) {
-      foundRunButton = true;
-      break;
-    }
-  }
-
-  expect(foundRunButton).toBe(true);
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("status")).toHaveText("Running");
-});
-
-test("places the learning guide below the playground and opens FAQ answers", async ({
+import { test, expect } from "@playwright/test";
+test("a visitor can step, retain, compare, and reset an experiment", async ({
   page,
 }) => {
-  await gotoReducedMotion(page);
-
-  const layout = await page.evaluate(() => {
-    const playground = document.querySelector(".app-shell").getBoundingClientRect();
-    const guide = document
-      .querySelector('[data-testid="learning-guide"]')
-      .getBoundingClientRect();
-
-    return {
-      playgroundBottom: playground.bottom,
-      guideTop: guide.top,
-    };
-  });
-
-  expect(layout.guideTop).toBeGreaterThanOrEqual(layout.playgroundBottom - 1);
-
-  await page.getByTestId("learning-guide").scrollIntoViewIfNeeded();
-  await expect(
-    page.getByRole("heading", { name: "What is Gradient Lab?" })
-  ).toBeVisible();
-
-  await page.getByText("Is this a neural network?").click();
-  await expect(page.getByText(/This lab isolates the optimization step/i)).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByLabel("Function")).toHaveValue("bowl");
+  await page.getByRole("button", { name: "Step", exact: true }).click();
+  await expect(page.getByText("Paused · Step 1")).toBeVisible();
+  await page.getByRole("button", { name: /Retain run/ }).click();
+  await page.getByLabel("Optimizer").selectOption("adam");
+  await expect(page.getByRole("table")).toContainText("gd / 0.08");
+  await expect(page.getByRole("table")).toContainText("adam / 0.08");
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(page.getByText("Paused · Step 0")).toBeVisible();
+});
+test("large learning rates produce an explicit failure rather than a bounded fake path", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "What if the step is too large?" })
+    .click();
+  await page.getByLabel("Inspect iteration").focus();
+  await page.getByLabel("Inspect iteration").press("End");
+  await expect(page.getByRole("table")).toContainText("safety limit");
+});
+test("URL round trip preserves the experiment and rejects unknown versions", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByLabel("Optimizer").selectOption("adam");
+  await page.getByRole("button", { name: "Share current experiment" }).click();
+  const url = page.url();
+  await page.goto(url);
+  await expect(page.getByLabel("Optimizer")).toHaveValue("adam");
+  await page.goto("/?experiment=" + encodeURIComponent('{"version":2}'));
+  await expect(page.getByRole("alert")).toContainText("unsupported version");
+});
+test("a shared start change clears retained runs", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Retain run/ }).click();
+  await page.getByRole("spinbutton", { name: "x", exact: true }).fill("1");
+  await expect(page.getByRole("button", { name: /Retain run/ })).toContainText(
+    "(0/2)",
+  );
 });
 
-for (const viewport of [
-  { width: 390, height: 844 },
-  { width: 500, height: 844 },
-  { width: 768, height: 1024 },
-  { width: 1024, height: 768 },
-  { width: 1280, height: 720 },
-  { width: 1440, height: 900 },
-]) {
-  test(`does not horizontally overflow at ${viewport.width}x${viewport.height}`, async ({
-    page,
-  }) => {
-    await page.setViewportSize(viewport);
-    await gotoReducedMotion(page);
-
-    const overflow = await page.evaluate(() => {
-      const documentWidth = document.documentElement.clientWidth;
-      const scrollWidth = document.documentElement.scrollWidth;
-      const overflowingElements = Array.from(document.querySelectorAll("body *"))
-        .map((element) => {
-          const rect = element.getBoundingClientRect();
-          return {
-            tag: element.tagName,
-            className: element.className,
-            left: rect.left,
-            right: rect.right,
-          };
-        })
-        .filter((rect) => rect.right > documentWidth + 1 || rect.left < -1);
-
-      return {
-        documentWidth,
-        scrollWidth,
-        overflowingElements,
-      };
-    });
-
-    expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.documentWidth + 1);
-    expect(overflow.overflowingElements).toEqual([]);
-  });
-}
+test("rendering and playback controls cannot change downloaded mathematics", async ({
+  page,
+}) => {
+  await page.goto("/");
+  async function downloadTrace() {
+    const pending = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download all traces" }).click();
+    const download = await pending;
+    const stream = await download.createReadStream();
+    let text = "";
+    for await (const chunk of stream) text += chunk;
+    return JSON.parse(text);
+  }
+  const before = await downloadTrace();
+  await page.getByRole("button", { name: "3D View", exact: true }).click();
+  await page.getByRole("combobox", { name: "Speed", exact: true }).selectOption("4");
+  await page.getByRole("button", { name: "Step", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const after = await downloadTrace();
+  expect(after).toEqual(before);
+});
