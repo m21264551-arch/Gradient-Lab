@@ -1,283 +1,573 @@
 import { useEffect, useMemo, useState } from "react";
-import { Activity, Check, Shuffle } from "lucide-react";
-import ControlPanel from "./components/ControlPanel";
-import InsightBar from "./components/InsightBar";
+import {
+  DEFAULT_CONFIG,
+  OBJECTIVES,
+  OPTIMIZERS,
+  getObjective,
+  simulateDescent,
+  summarizeRun,
+  encodeExperiment,
+  decodeExperiment,
+  seededRandom,
+} from "./lib/objectives";
 import LandscapeCanvas from "./components/LandscapeCanvas";
-import LearningGuide from "./components/LearningGuide";
-import MetricsPanel from "./components/MetricsPanel";
-import { getObjective, simulateDescent, summarizeRun } from "./lib/objectives";
 import "./styles.css";
-
-const SPEED_STEPS = {
-  0.5: 1,
-  1: 2,
-  2: 4,
-  4: 7,
-};
-
-function prefersReducedMotion() {
-  return (
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-  );
+const COLORS = ["#254f9c", "#b34828", "#6f4d8c"];
+function initial() {
+  try {
+    const text = new URLSearchParams(window.location.search).get("experiment");
+    return {
+      config: text ? decodeExperiment(text) : DEFAULT_CONFIG,
+      error: null,
+    };
+  } catch (e) {
+    return { config: DEFAULT_CONFIG, error: e.message };
+  }
 }
-
+const fmt = (n) =>
+  Number.isFinite(n)
+    ? Math.abs(n) > 1e5 || (Math.abs(n) < 1e-4 && n !== 0)
+      ? n.toExponential(3)
+      : Number(n.toPrecision(5)).toString()
+    : "Unavailable";
 export default function App() {
-  const [objectiveId, setObjectiveId] = useState("rosenbrock");
-  const objective = useMemo(() => getObjective(objectiveId), [objectiveId]);
-  const [startPoint, setStartPoint] = useState(null);
-  const [optimizer, setOptimizer] = useState("momentum");
-  const [logLearningRate, setLogLearningRate] = useState(
-    Math.log10(objective.defaultLearningRate)
-  );
-  const [momentum, setMomentum] = useState(0.9);
-  const [noise, setNoise] = useState(0);
-  const [speed, setSpeed] = useState(1);
-  const [running, setRunning] = useState(() => !prefersReducedMotion());
-  const [cursor, setCursor] = useState(0);
-  const [seed, setSeed] = useState(173);
-  const [showContours, setShowContours] = useState(true);
-  const [viewMode, setViewMode] = useState("3d");
-
-  const learningRate = 10 ** logLearningRate;
-  const speedStep = SPEED_STEPS[speed] ?? SPEED_STEPS[1];
-  const trace = useMemo(
+  const [boot] = useState(initial),
+    [config, setConfig] = useState(boot.config),
+    [error, setError] = useState(boot.error),
+    [retained, setRetained] = useState([]),
+    [cursor, setCursor] = useState(0),
+    [running, setRunning] = useState(false),
+    [speed, setSpeed] = useState(1),
+    [view, setView] = useState("contour"),
+    [message, setMessage] = useState("");
+  const objective = getObjective(config.objectiveId);
+  const result = useMemo(
     () =>
       simulateDescent({
-        objective,
-        optimizer,
-        learningRate,
-        momentum,
-        noise,
-        seed,
-        startPoint,
+        ...config,
+        objective: getObjective(config.objectiveId),
       }),
-    [objective, optimizer, learningRate, momentum, noise, seed, startPoint]
+    [config],
   );
-
-  const currentIndex = Math.min(cursor, trace.length - 1);
-  const current = trace[currentIndex];
-  const summary = useMemo(
-    () => summarizeRun(trace, currentIndex, objective),
-    [currentIndex, objective, trace]
+  const runs = useMemo(
+    () => [...retained, { config, result }],
+    [retained, config, result],
   );
-
+  const last = Math.max(...runs.map((r) => r.result.trace.length - 1));
+  const current = result.trace[Math.min(cursor, result.trace.length - 1)],
+    summary = summarizeRun(result.trace, cursor, objective);
+  function update(changes) {
+    setConfig((c) => ({ ...c, ...changes }));
+    setCursor(0);
+    setRunning(false);
+    setError(null);
+    setMessage("");
+  }
   useEffect(() => {
-    if (!running) {
-      return undefined;
-    }
-
-    let animationFrame = 0;
-    let lastFrame = 0;
-    let elapsed = 0;
-
-    const tick = (timestamp) => {
-      if (!lastFrame) {
-        lastFrame = timestamp;
-      }
-
-      elapsed += timestamp - lastFrame;
-      lastFrame = timestamp;
-
-      if (elapsed >= 85) {
-        const ticks = Math.floor(elapsed / 85);
-        elapsed %= 85;
-        let shouldStop = false;
-
-        setCursor((index) => {
-          const next = Math.min(index + speedStep * ticks, trace.length - 1);
-          shouldStop = next >= trace.length - 1;
-          return next;
-        });
-
-        if (shouldStop) {
-          setRunning(false);
-        }
-      }
-
-      animationFrame = window.requestAnimationFrame(tick);
-    };
-
-    animationFrame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(animationFrame);
-  }, [running, speedStep, trace.length]);
-
+    if (!running) return;
+    const id = setTimeout(() => {
+      const next = Math.min(cursor + speed, last);
+      setCursor(next);
+      if (next >= last) setRunning(false);
+    }, 80);
+    return () => clearTimeout(id);
+  }, [running, speed, last, cursor]);
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setRunning(false);
-      }
+    const pause = () => {
+      if (document.hidden) setRunning(false);
     };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("visibilitychange", pause);
+    return () => document.removeEventListener("visibilitychange", pause);
   }, []);
-
-  function handleObjectiveChange(nextObjectiveId) {
-    const nextObjective = getObjective(nextObjectiveId);
-    setObjectiveId(nextObjectiveId);
-    setStartPoint(null);
-    setLogLearningRate(Math.log10(nextObjective.defaultLearningRate));
-    setCursor(0);
-    setRunning(false);
+  function preset(name) {
+    setRetained([]);
+    const rosen = name === "valley";
+    update({
+      ...DEFAULT_CONFIG,
+      objectiveId: rosen ? "rosenbrock" : "bowl",
+      startPoint: rosen ? OBJECTIVES[0].start : DEFAULT_CONFIG.startPoint,
+      optimizer: rosen ? "momentum" : "gd",
+      learningRate: rosen ? 0.001 : name === "unstable" ? 1 : 0.08,
+    });
   }
-
-  function restartFromControlChange(callback) {
-    callback();
-    setCursor(0);
-    setRunning(false);
+  function setStart(startPoint) {
+    setRetained([]);
+    update({ startPoint });
   }
-
-  function handleReset() {
-    setCursor(0);
-    setRunning(false);
+  function newStart() {
+    const random = seededRandom(config.seed + 1),
+      [a, b] = objective.domain;
+    setRetained([]);
+    update({
+      seed: config.seed + 1,
+      startPoint: { x: a + (b - a) * random(), y: a + (b - a) * random() },
+    });
   }
-
-  function handleStep() {
-    setRunning(false);
-    setCursor((index) => Math.min(index + 1, trace.length - 1));
-  }
-
-  function handleRestartSeed() {
-    const [min, max] = objective.domain;
-    const margin = (max - min) * 0.12;
-    let next = null;
-
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      const x = min + margin + Math.random() * (max - min - margin * 2);
-      const y = min + margin + Math.random() * (max - min - margin * 2);
-      const distance = Math.hypot(x - objective.minimum.x, y - objective.minimum.y);
-
-      if (distance > 1) {
-        next = { x, y };
-        break;
-      }
+  async function share() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("experiment", encodeExperiment(config));
+    window.history.replaceState(null, "", url);
+    try {
+      await navigator.clipboard.writeText(url.href);
+      setMessage(
+        "Experiment link copied. It contains the current run and seed.",
+      );
+    } catch {
+      setMessage(
+        "Experiment saved in the address bar. Copy the URL to share it.",
+      );
     }
-
-    setStartPoint(next ?? objective.start);
-    setSeed((value) => value + 31);
-    setCursor(0);
-    setRunning(false);
   }
-
+  function download() {
+    const blob = new Blob(
+        [
+          JSON.stringify(
+            {
+              schemaVersion: 1,
+              runs: runs.map((r) => ({ config: r.config, ...r.result })),
+            },
+            null,
+            2,
+          ),
+        ],
+        { type: "application/json" },
+      ),
+      url = URL.createObjectURL(blob),
+      a = document.createElement("a");
+    a.href = url;
+    a.download = "gradient-experiment.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   return (
-    <div className="site-shell">
-      <div className="app-shell">
-        <header className="topbar">
-          <div className="brand-block">
-            <div className="brand-mark">
-              <Activity size={22} />
-            </div>
-            <div>
-              <h1>Gradient Lab</h1>
-              <span>Interactive gradient descent visualizer</span>
-            </div>
-          </div>
-          <div className="topbar-actions">
-            <span className={`run-state ${running ? "is-running" : ""}`}>
-              <span className="status-dot" />
-              <span role="status" aria-live="polite">
-                {running ? "Running" : "Paused"}
-              </span>
-            </span>
-            <button
-              type="button"
-              data-testid="new-path"
-              onClick={handleRestartSeed}
-              title="Choose a new starting point"
-            >
-              <Shuffle size={18} />
-              New path
-            </button>
-          </div>
-        </header>
-
-        <ControlPanel
-          objectiveId={objectiveId}
-          optimizer={optimizer}
-          logLearningRate={logLearningRate}
-          momentum={momentum}
-          noise={noise}
-          speed={speed}
-          running={running}
-          onObjectiveChange={handleObjectiveChange}
-          onOptimizerChange={(value) =>
-            restartFromControlChange(() => setOptimizer(value))
-          }
-          onLearningRateChange={(value) =>
-            restartFromControlChange(() => setLogLearningRate(value))
-          }
-          onMomentumChange={(value) =>
-            restartFromControlChange(() => setMomentum(value))
-          }
-          onNoiseChange={(value) =>
-            restartFromControlChange(() => setNoise(value))
-          }
-          onSpeedChange={setSpeed}
-          onToggleRun={() => setRunning((value) => !value)}
-          onStep={handleStep}
-          onReset={handleReset}
-        />
-
-        <main className="visual-panel">
-          <div className="canvas-toolbar">
-            <label className="checkbox-control">
-              <input
-                type="checkbox"
-                checked={showContours}
-                onChange={(event) => setShowContours(event.target.checked)}
-              />
-              <span>
-                <Check size={13} />
-              </span>
-              Show contours
-            </label>
-            <div className="segmented-control view-toggle" role="group" aria-label="View mode">
-              <button
-                type="button"
-                className={viewMode === "3d" ? "active" : ""}
-                aria-pressed={viewMode === "3d"}
-                onClick={() => setViewMode("3d")}
-              >
-                3D View
-              </button>
-              <button
-                type="button"
-                className={viewMode === "contour" ? "active" : ""}
-                aria-pressed={viewMode === "contour"}
-                onClick={() => setViewMode("contour")}
-              >
-                Contour
-              </button>
+    <main className="lab">
+      <header>
+        <a className="wordmark" href="/">
+          Gradient Lab <span>01 / Optimization</span>
+        </a>
+        <nav>
+          <a href="https://github.com/m21264551-arch/Gradient-Lab">
+            Code & method ↗
+          </a>
+          <a href="https://m21264551.com">Portfolio ↗</a>
+        </nav>
+      </header>
+      <section className="intro">
+        <p className="eyebrow">A controlled experiment</p>
+        <h1>
+          Same starting point.
+          <br />
+          Different path downhill.
+        </h1>
+        <p>
+          Compare update rules on a two-parameter function. Change one setting,
+          retain a run, and see what changes in the path and loss.
+        </p>
+      </section>
+      {error && (
+        <p role="alert" className="error">
+          {error}{" "}
+          <button
+            onClick={() => {
+              setError(null);
+              setConfig(DEFAULT_CONFIG);
+            }}
+          >
+            Use default experiment
+          </button>
+        </p>
+      )}
+      <div className="presets" aria-label="Experiment presets">
+        <span>Start with a question</span>
+        <button onClick={() => preset("stable")}>
+          How does descent converge?
+        </button>
+        <button onClick={() => preset("unstable")}>
+          What if the step is too large?
+        </button>
+        <button onClick={() => preset("valley")}>
+          What does momentum change?
+        </button>
+      </div>
+      <div className="bench">
+        <section className="experiment" aria-label="Experiment visualization">
+          <div className="plot-heading">
+            <h2>{objective.name}</h2>
+            <div role="group" aria-label="View mode">
+              {["contour", "3d"].map((v) => (
+                <button
+                  key={v}
+                  aria-pressed={view === v}
+                  onClick={() => setView(v)}
+                >
+                  {v === "contour" ? "Contour" : "3D View"}
+                </button>
+              ))}
             </div>
           </div>
           <LandscapeCanvas
             objective={objective}
-            trace={trace}
-            currentIndex={currentIndex}
-            showContours={showContours}
-            viewMode={viewMode}
+            runs={runs}
+            currentIndex={cursor}
+            viewMode={view}
+            onStart={setStart}
           />
-        </main>
-
-        <MetricsPanel
-          current={current}
-          summary={summary}
-          trace={trace}
-          currentIndex={currentIndex}
-        />
-
-        <InsightBar
-          objective={objective}
-          optimizer={optimizer}
-          learningRate={learningRate}
-          momentum={momentum}
-          summary={summary}
-        />
+          <p className="caption">
+            {view === "contour"
+              ? "Click the contour to set the shared starting point."
+              : "Height is normalized log(1 + loss), not raw loss."}{" "}
+            Colour uses normalized log(1 + loss). Paths outside the displayed
+            domain are clipped visually; the simulation continues.
+          </p>
+          <div className="playback">
+            <button
+              className="primary"
+              aria-label={running ? "Pause animation" : "Run animation"}
+              onClick={() => {
+                if (cursor >= last) setCursor(0);
+                setRunning((r) => !r);
+              }}
+            >
+              {running ? "Pause" : "Run"}
+            </button>
+            <button
+              onClick={() => {
+                setRunning(false);
+                setCursor((i) => Math.min(i + 1, last));
+              }}
+            >
+              Step
+            </button>
+            <button
+              onClick={() => {
+                setRunning(false);
+                setCursor(0);
+              }}
+            >
+              Reset
+            </button>
+            <label>
+              Speed{" "}
+              <select
+                value={speed}
+                onChange={(e) => setSpeed(Number(e.target.value))}
+              >
+                {[1, 2, 4].map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </label>
+            <span role="status">
+              {running ? "Running" : "Paused"} · Step {cursor}
+            </span>
+          </div>
+          <label className="scrubber">
+            Inspect iteration{" "}
+            <input
+              type="range"
+              min="0"
+              max={last}
+              value={cursor}
+              onChange={(e) => {
+                setRunning(false);
+                setCursor(Number(e.target.value));
+              }}
+            />
+          </label>
+        </section>
+        <aside className="controls" aria-label="Experiment controls">
+          <h2>Change one thing</h2>
+          <label>
+            Function
+            <select
+              value={config.objectiveId}
+              onChange={(e) => {
+                const o = getObjective(e.target.value);
+                setRetained([]);
+                update({
+                  objectiveId: o.id,
+                  startPoint: o.start,
+                  learningRate: o.defaultLearningRate,
+                });
+              }}
+            >
+              {OBJECTIVES.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p>{objective.description}</p>
+          <label>
+            Optimizer
+            <select
+              value={config.optimizer}
+              onChange={(e) => update({ optimizer: e.target.value })}
+            >
+              {OPTIMIZERS.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Learning rate α{" "}
+            <span className="control-value">{fmt(config.learningRate)}</span>
+            <input
+              type="range"
+              min="-5"
+              max="0"
+              step=".01"
+              value={Math.log10(config.learningRate)}
+              onChange={(e) =>
+                update({ learningRate: 10 ** Number(e.target.value) })
+              }
+            />
+          </label>
+          <label>
+            {config.optimizer === "adam" ? "First moment β₁" : "Momentum β"}{" "}
+            <span className="control-value">{fmt(config.momentum)}</span>
+            <input
+              type="range"
+              min="0"
+              max=".98"
+              step=".01"
+              value={config.momentum}
+              disabled={config.optimizer === "gd"}
+              onChange={(e) => update({ momentum: Number(e.target.value) })}
+            />
+          </label>
+          <label>
+            Gradient noise σ{" "}
+            <span className="control-value">{fmt(config.noise)}</span>
+            <input
+              type="range"
+              min="0"
+              max=".3"
+              step=".005"
+              value={config.noise}
+              onChange={(e) => update({ noise: Number(e.target.value) })}
+            />
+          </label>
+          <fieldset>
+            <legend>Shared start</legend>
+            {["x", "y"].map((axis) => (
+              <label key={axis}>
+                {axis}
+                <input
+                  type="number"
+                  min="-10"
+                  max="10"
+                  step=".01"
+                  value={config.startPoint[axis]}
+                  onChange={(e) => {
+                    if (
+                      e.target.value !== "" &&
+                      Number.isFinite(e.target.valueAsNumber) &&
+                      Math.abs(e.target.valueAsNumber) <= 10
+                    )
+                      setStart({
+                        ...config.startPoint,
+                        [axis]: e.target.valueAsNumber,
+                      });
+                  }}
+                />
+              </label>
+            ))}
+          </fieldset>
+          <button onClick={newStart}>New start</button>
+          <p>
+            Seed {config.seed}. Changing the function or starting point clears
+            retained runs.
+          </p>
+          <button
+            disabled={retained.length >= 2}
+            onClick={() => {
+              setRetained((r) => [...r, { config: { ...config }, result }]);
+              setCursor(0);
+              setRunning(false);
+            }}
+          >
+            Retain run for comparison ({retained.length}/2)
+          </button>
+          <button disabled={!retained.length} onClick={() => setRetained([])}>
+            Clear comparisons
+          </button>
+        </aside>
       </div>
-
-      <LearningGuide />
-    </div>
+      <section className="results">
+        <div>
+          <p className="eyebrow">Evidence from this run</p>
+          <h2>{summary.status}</h2>
+          <p>
+            {current
+              ? `At step ${current.iteration}, loss is ${fmt(current.loss)} and the gradient norm is ${fmt(current.gradNorm)}.`
+              : "The initial state could not be evaluated."}{" "}
+            {cursor >= result.trace.length - 1
+              ? `Stopped: ${result.termination.replaceAll("_", " ")}.`
+              : "The run is paused at an intermediate step."}
+          </p>
+          <p className="equation">
+            {config.optimizer === "gd"
+              ? "θₜ₊₁ = θₜ − αgₜ"
+              : config.optimizer === "momentum"
+                ? "vₜ₊₁ = βvₜ − αgₜ; θₜ₊₁ = θₜ + vₜ₊₁"
+                : "θₜ₊₁ = θₜ − αm̂ₜ / (√v̂ₜ + ε)"}
+          </p>
+          {current?.dx !== undefined && (
+            <p>
+              Next x update: {fmt(current.x)} + ({fmt(current.dx)}) ={" "}
+              {fmt(current.x + current.dx)}. Gradient x: {fmt(current.gradX)}
+              {config.noise > 0
+                ? `; after noise: ${fmt(current.noisyGradX)}`
+                : ""}
+              .
+            </p>
+          )}
+        </div>
+        <LossComparison runs={runs} cursor={cursor} />
+      </section>
+      <div
+        className="table-wrap"
+        tabIndex="0"
+        role="region"
+        aria-label="Run comparison"
+      >
+        <table>
+          <caption>Run comparison at the selected iteration</caption>
+          <thead>
+            <tr>
+              <th>Run</th>
+              <th>Optimizer / α</th>
+              <th>Step</th>
+              <th>Loss</th>
+              <th>Gradient norm</th>
+              <th>Nearest minimum</th>
+              <th>State</th>
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map((r, i) => {
+              const p =
+                  r.result.trace[Math.min(cursor, r.result.trace.length - 1)],
+                s = summarizeRun(r.result.trace, cursor, objective);
+              return (
+                <tr key={i}>
+                  <th style={{ color: COLORS[i] }}>
+                    Run {i + 1}
+                    {i === runs.length - 1 ? " · current" : ""}
+                  </th>
+                  <td>
+                    {r.config.optimizer} / {fmt(r.config.learningRate)}
+                  </td>
+                  <td>{p?.iteration ?? "—"}</td>
+                  <td>{fmt(p?.loss)}</td>
+                  <td>{fmt(p?.gradNorm)}</td>
+                  <td>{fmt(s.minimumDistance)}</td>
+                  <td>
+                    {cursor >= r.result.trace.length - 1
+                      ? r.result.termination.replaceAll("_", " ")
+                      : s.status}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="export">
+        <button onClick={share}>Share current experiment</button>
+        <button onClick={download}>Download all traces</button>
+        <span role="status">{message}</span>
+      </div>
+      <section className="method">
+        <h2>What this experiment can tell you</h2>
+        <div>
+          <p>
+            These are exact two-dimensional objective functions, not a trained
+            neural network. The gradient is analytic. The simulation does not
+            clip updates or project parameters back into the picture.
+          </p>
+          <p>
+            Noise is independent uniform U(−σ, σ) added to each gradient
+            component. Adam uses β₂ = 0.999 and ε = 10⁻⁸. All runs use a seeded
+            generator. Equal learning rates are a controlled comparison, not a
+            claim that the algorithms are equally tuned.
+          </p>
+          <p>
+            Known minima are marked with a cross. A stationary point can also be
+            a saddle. Runs stop at 220 updates by default, a gradient norm below
+            10⁻⁸ without noise, a non-finite value, or safety limits of
+            |coordinate| &gt; 10⁶ / |loss| &gt; 10¹². A safety stop is not
+            convergence.
+          </p>
+        </div>
+      </section>
+    </main>
+  );
+}
+function LossComparison({ runs, cursor }) {
+  const W = 600,
+    H = 220,
+    P = 40,
+    visible = runs.map((r) => r.result.trace.slice(0, cursor + 1)),
+    points = visible.flat(),
+    max = Math.max(1, ...points.map((p) => Math.log1p(Math.max(0, p.loss)))),
+    steps = Math.max(1, cursor);
+  return (
+    <figure>
+      <figcaption>Loss over iteration · log(1 + loss)</figcaption>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        role="img"
+        aria-label="Loss comparison chart"
+      >
+        <path d={`M${P} 12V${H - P}H${W - 12}`} fill="none" stroke="#89929d" />
+        {[0, 0.5, 1].map((t) => (
+          <g key={t}>
+            <line
+              x1={P}
+              x2={W - 12}
+              y1={H - P - t * (H - P - 12)}
+              y2={H - P - t * (H - P - 12)}
+              stroke="#e1e4e7"
+            />
+            <text x="0" y={H - P - t * (H - P - 12)} fontSize="10">
+              {fmt(Math.expm1(t * max))}
+            </text>
+          </g>
+        ))}
+        {visible.map((trace, i) => (
+          <polyline
+            key={i}
+            fill="none"
+            stroke={COLORS[i]}
+            strokeWidth="2"
+            strokeDasharray={i === 1 ? "6 3" : i === 2 ? "2 2" : undefined}
+            points={trace
+              .map(
+                (p) =>
+                  `${P + (p.iteration / steps) * (W - P - 12)},${H - P - (Math.log1p(Math.max(0, p.loss)) / max) * (H - P - 12)}`,
+              )
+              .join(" ")}
+          />
+        ))}
+        <text x={P} y={H - 12} fontSize="12">
+          0
+        </text>
+        <text x={W - 60} y={H - 12} fontSize="12">
+          {cursor} steps
+        </text>
+      </svg>
+      <p>
+        {runs.map((_, i) => (
+          <span className="run-label" key={i} style={{ color: COLORS[i] }}>
+            Run {i + 1} {i === 1 ? "– –" : i === 2 ? "···" : "——"}
+          </span>
+        ))}
+      </p>
+    </figure>
   );
 }
