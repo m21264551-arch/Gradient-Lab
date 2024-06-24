@@ -9,12 +9,13 @@ export default function LandscapeCanvas({
   onStart,
 }) {
   const ref = useRef(null),
-    [size, setSize] = useState({ w: 800, h: 440 });
+    [size, setSize] = useState({ w: 800, h: 280 });
   const surface = useMemo(() => buildSurface(objective, 60), [objective]);
   useEffect(() => {
     const canvas = ref.current,
       observer = new ResizeObserver((entries) => {
-        setSize({ w: Math.max(280, entries[0].contentRect.width), h: 440 });
+        const w = Math.max(240, entries[0].contentRect.width);
+        setSize({ w, h: 280 });
       });
     observer.observe(canvas.parentElement);
     return () => observer.disconnect();
@@ -65,7 +66,7 @@ export default function LandscapeCanvas({
         else ctx.lineTo(v.x, v.y);
       });
       ctx.closePath();
-      ctx.fillStyle = `hsl(${210 - 175 * z} 30% ${95 - 35 * z}%)`;
+      ctx.fillStyle = `hsl(215 22% ${98 - 28 * z}%)`;
       ctx.fill();
     }
     // Marching-square segments at fixed normalized log-height levels.
@@ -177,7 +178,7 @@ export default function LandscapeCanvas({
     <div className="landscape-wrap">
       <canvas
         ref={ref}
-        style={{ width: "100%", height: 440 }}
+        style={{ width: "100%", height: size.h }}
         role="img"
         aria-label="Loss landscape visualization"
         aria-describedby="landscape-summary"
