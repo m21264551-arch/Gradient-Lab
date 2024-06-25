@@ -19,8 +19,10 @@ it("retains a comparison with its original parameters", async () => {
   render(<App />);
   await user.click(screen.getByRole("button", { name: /Add to comparison/ }));
   await user.selectOptions(screen.getByLabelText("Optimizer"), "adam");
-  expect(screen.getByText("gd / 0.08")).toBeInTheDocument();
-  expect(screen.getByText("adam / 0.08")).toBeInTheDocument();
+  expect(screen.getByRole("table")).toHaveTextContent(
+    "Gradient descent · α 0.08",
+  );
+  expect(screen.getByRole("table")).toHaveTextContent("Adam · α 0.08");
   await user.click(screen.getByRole("button", { name: /Add to comparison/ }));
   expect(
     screen.getByRole("button", { name: /Add to comparison/ }),
@@ -42,8 +44,10 @@ it("has nonvisual metrics and an explicit transformed display scale", () => {
   expect(
     screen.getByRole("img", { name: "Loss landscape visualization" }),
   ).toBeInTheDocument();
-  expect(screen.getByRole("table")).toHaveAccessibleName(
-    "Run comparison at the selected iteration",
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  expect(screen.getByText(/Height and colour: loss/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "3D View" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
   );
-  expect(screen.getByText(/Colour: normalized/)).toBeInTheDocument();
 });
