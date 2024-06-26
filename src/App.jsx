@@ -259,6 +259,44 @@ export default function App() {
               }}
             />
           </label>
+          <section className="results">
+            <div>
+              <p className="result-label">Current run</p>
+              <h2>{summary.status}</h2>
+              <p>
+                {current
+                  ? `At step ${current.iteration}, loss is ${fmt(current.loss)} and the gradient norm is ${fmt(current.gradNorm)}.`
+                  : "The initial state could not be evaluated."}{" "}
+                {cursor >= result.trace.length - 1
+                  ? `Stopped: ${result.termination.replaceAll("_", " ")}.`
+                  : running
+                    ? "Running."
+                    : "Paused."}
+              </p>
+              <details>
+                <summary>Step details</summary>
+                <p className="equation">
+                  {config.optimizer === "gd"
+                    ? "θₜ₊₁ = θₜ − αgₜ"
+                    : config.optimizer === "momentum"
+                      ? "vₜ₊₁ = βvₜ − αgₜ; θₜ₊₁ = θₜ + vₜ₊₁"
+                      : "θₜ₊₁ = θₜ − αm̂ₜ / (√v̂ₜ + ε)"}
+                </p>
+                {current?.dx !== undefined && (
+                  <p>
+                    Next x update: {fmt(current.x)} + ({fmt(current.dx)}) ={" "}
+                    {fmt(current.x + current.dx)}. Gradient x:{" "}
+                    {fmt(current.gradX)}
+                    {config.noise > 0
+                      ? `; after noise: ${fmt(current.noisyGradX)}`
+                      : ""}
+                    .
+                  </p>
+                )}
+              </details>
+            </div>
+            <LossComparison runs={runs} cursor={cursor} />
+          </section>
         </section>
         <aside className="controls" aria-label="Experiment controls">
           <h2>Settings</h2>
@@ -389,43 +427,7 @@ export default function App() {
           </button>
         </aside>
       </div>
-      <section className="results">
-        <div>
-          <p className="result-label">Current run</p>
-          <h2>{summary.status}</h2>
-          <p>
-            {current
-              ? `At step ${current.iteration}, loss is ${fmt(current.loss)} and the gradient norm is ${fmt(current.gradNorm)}.`
-              : "The initial state could not be evaluated."}{" "}
-            {cursor >= result.trace.length - 1
-              ? `Stopped: ${result.termination.replaceAll("_", " ")}.`
-              : running
-                ? "Running."
-                : "Paused."}
-          </p>
-          <details>
-            <summary>Step details</summary>
-            <p className="equation">
-              {config.optimizer === "gd"
-                ? "θₜ₊₁ = θₜ − αgₜ"
-                : config.optimizer === "momentum"
-                  ? "vₜ₊₁ = βvₜ − αgₜ; θₜ₊₁ = θₜ + vₜ₊₁"
-                  : "θₜ₊₁ = θₜ − αm̂ₜ / (√v̂ₜ + ε)"}
-            </p>
-            {current?.dx !== undefined && (
-              <p>
-                Next x update: {fmt(current.x)} + ({fmt(current.dx)}) ={" "}
-                {fmt(current.x + current.dx)}. Gradient x: {fmt(current.gradX)}
-                {config.noise > 0
-                  ? `; after noise: ${fmt(current.noisyGradX)}`
-                  : ""}
-                .
-              </p>
-            )}
-          </details>
-        </div>
-        <LossComparison runs={runs} cursor={cursor} />
-      </section>
+
       {retained.length > 0 && (
         <div
           className="table-wrap"

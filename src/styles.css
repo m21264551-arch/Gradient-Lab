@@ -249,8 +249,9 @@ h2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 32px;
-  padding: 18px 0;
-  border-bottom: 1px solid #dce1e6;
+  padding: 18px 0 0;
+  margin-top: 16px;
+  border-top: 1px solid #dce1e6;
 }
 .result-label {
   font-size: 12px !important;
