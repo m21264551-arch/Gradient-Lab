@@ -6,7 +6,7 @@ test("a visitor can step, retain, compare, and reset an experiment", async ({
   await expect(page.getByLabel("Function")).toHaveValue("bowl");
   await page.getByRole("button", { name: "Step", exact: true }).click();
   await expect(page.getByText("Paused · Step 1")).toBeVisible();
-  await page.getByRole("button", { name: /Add to comparison/ }).click();
+  await page.getByRole("button", { name: /Add(?:ed)? to comparison/ }).click();
   await page.getByLabel("Optimizer").selectOption("adam");
   await expect(page.getByRole("table")).toContainText(
     "Gradient descent · α 0.08",
@@ -32,7 +32,7 @@ test("URL round trip preserves the experiment and rejects unknown versions", asy
 }) => {
   await page.goto("/");
   await page.getByLabel("Optimizer").selectOption("adam");
-  await page.getByRole("button", { name: "Share experiment" }).click();
+  await page.getByRole("button", { name: "Copy current run link" }).click();
   const url = page.url();
   await page.goto(url);
   await expect(page.getByLabel("Optimizer")).toHaveValue("adam");
@@ -41,12 +41,10 @@ test("URL round trip preserves the experiment and rejects unknown versions", asy
 });
 test("a shared start change clears retained runs", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: /Add to comparison/ }).click();
+  await page.getByRole("button", { name: /Add(?:ed)? to comparison/ }).click();
   await page.getByText("Starting point", { exact: true }).click();
   await page.getByRole("spinbutton", { name: "x", exact: true }).fill("1");
-  await expect(
-    page.getByRole("button", { name: /Add to comparison/ }),
-  ).toContainText("(0/2)");
+  await expect(page.getByText("0 of 2 saved · current run also shown")).toBeVisible();
 });
 
 test("rendering and playback controls cannot change downloaded mathematics", async ({
@@ -78,7 +76,7 @@ test("guide navigation preserves a shared experiment and its current step", asyn
 }) => {
   await page.goto("/");
   await page.getByLabel("Optimizer").selectOption("adam");
-  await page.getByRole("button", { name: "Share experiment" }).click();
+  await page.getByRole("button", { name: "Copy current run link" }).click();
   const query = new URL(page.url()).search;
   await page.getByRole("button", { name: "Step", exact: true }).click();
   await page.getByRole("link", { name: "How to use", exact: true }).click();
@@ -90,3 +88,44 @@ test("guide navigation preserves a shared experiment and its current step", asyn
   await expect(page.getByText("Paused · Step 1")).toBeVisible();
   await expect(page.getByLabel("Optimizer")).toHaveValue("adam");
 });
+
+test("saved comparisons preserve position and can be restored after a start change", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Step", exact: true }).click();
+  await page.getByRole("button", { name: "Add to comparison", exact: true }).click();
+  await expect(page.getByText("Paused · Step 1")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Added to comparison" })).toBeDisabled();
+  await expect(page.getByRole("table")).toHaveCount(0);
+  await page.getByLabel("Function").selectOption("saddle");
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.getByLabel("Function")).toHaveValue("bowl");
+  await expect(page.getByText("Paused · Step 1")).toBeVisible();
+  await page.getByLabel("Optimizer").selectOption("adam");
+  await expect(page.getByRole("table")).toContainText("Adam · α 0.08");
+  await page.getByRole("button", { name: "Remove Gradient descent · α 0.08" }).click();
+  await expect(page.getByRole("table")).toHaveCount(0);
+});
+
+test("an exact learning rate is keyboard editable and exposed without a logarithm", async ({ page }) => {
+  await page.goto("/");
+  const rate = page.getByRole("spinbutton", { name: "Learning rate α" });
+  await rate.fill("0.0123"); await rate.press("Tab");
+  await expect(page.getByRole("slider", { name: "Learning rate slider" })).toHaveAttribute("aria-valuetext", "0.0123");
+  await rate.fill("2"); await rate.press("Tab");
+  await expect(page.getByRole("alert")).toContainText("between 0.00001 and 1");
+});
+
+for (const [width, height] of [[1280,720],[800,900],[390,844]]) {
+  test(`primary feedback and geometry at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({width, height}); await page.goto("/");
+    const bounds = await page.locator("canvas").boundingBox();
+    expect(bounds.height).toBe(width < 760 ? 320 : 420);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(height);
+    expect((await page.getByRole("button", {name:"Run animation"}).boundingBox()).y).toBeLessThan(height);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    await page.screenshot({path:`../../outputs/refined-gradient-${width}.png`});
+    await page.getByRole("link", {name:"How to use",exact:true}).click();
+    await page.getByRole("heading", {name:"How to use Gradient Lab"}).scrollIntoViewIfNeeded();
+    await page.screenshot({path:`../../outputs/refined-gradient-guide-${width}.png`});
+  });
+}

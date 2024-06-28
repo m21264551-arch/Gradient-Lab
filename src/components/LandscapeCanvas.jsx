@@ -168,13 +168,13 @@ export default function LandscapeCanvas({
         else ctx.moveTo(v.x, v.y);
         connected = true;
       }
-      ctx.setLineDash(i === 1 ? [7, 4] : i === 2 ? [2, 4] : []);
+      ctx.setLineDash((run.slot ?? i) === 1 ? [7, 4] : (run.slot ?? i) === 2 ? [2, 4] : []);
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
       ctx.strokeStyle = "rgba(255,255,255,.85)";
       ctx.lineWidth = 5;
       ctx.stroke();
-      ctx.strokeStyle = RUN_COLORS[i];
+      ctx.strokeStyle = RUN_COLORS[run.slot ?? i];
       ctx.lineWidth = 2.5;
       ctx.stroke();
       ctx.setLineDash([]);
@@ -208,7 +208,7 @@ export default function LandscapeCanvas({
       const v = projectTracePoint(p, surface, geometry);
       ctx.beginPath();
       ctx.arc(v.x, v.y, 7, 0, Math.PI * 2);
-      ctx.fillStyle = RUN_COLORS[i];
+      ctx.fillStyle = RUN_COLORS[run.slot ?? i];
       ctx.fill();
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 3;
@@ -266,11 +266,11 @@ export default function LandscapeCanvas({
           <span key={i}>
             <i
               style={{
-                borderColor: RUN_COLORS[i],
-                borderStyle: i === 1 ? "dashed" : i === 2 ? "dotted" : "solid",
+                borderColor: RUN_COLORS[run.slot ?? i],
+                borderStyle: (run.slot ?? i) === 1 ? "dashed" : (run.slot ?? i) === 2 ? "dotted" : "solid",
               }}
             />{" "}
-            {runLabel(run.config)}
+            {runLabel(run.config)}{run.current && runs.length > 1 ? " · current" : ""}
           </span>
         ))}
         <span>
