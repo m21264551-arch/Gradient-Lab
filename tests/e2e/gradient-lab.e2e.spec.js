@@ -19,6 +19,7 @@ test("large learning rates produce an explicit failure rather than a bounded fak
   page,
 }) => {
   await page.goto("/");
+  await page.getByText("Presets", {exact:true}).click();
   await page.getByRole("button", { name: "Large learning rate" }).click();
   await page.getByLabel("Inspect iteration").focus();
   await page.getByLabel("Inspect iteration").press("End");
@@ -119,13 +120,20 @@ for (const [width, height] of [[1280,720],[800,900],[390,844]]) {
   test(`primary feedback and geometry at ${width}px`, async ({ page }) => {
     await page.setViewportSize({width, height}); await page.goto("/");
     const bounds = await page.locator("canvas").boundingBox();
-    expect(bounds.height).toBe(width < 760 ? 320 : 420);
+    expect(bounds.height).toBeGreaterThanOrEqual(320);
+    if(width >= 1200) {
+      const settings=await page.getByRole("region",{name:"Basic settings"}).boundingBox();
+      const results=await page.getByRole("region",{name:"Experiment results"}).boundingBox();
+      expect(settings.x+settings.width).toBeLessThanOrEqual(bounds.x);
+      expect(results.x).toBeGreaterThanOrEqual(bounds.x+bounds.width);
+      expect((await page.locator(".results svg").boundingBox()).y).toBeLessThan(height-200);
+    }
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(height);
     expect((await page.getByRole("button", {name:"Run animation"}).boundingBox()).y).toBeLessThan(height);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
-    await page.screenshot({path:`../../outputs/refined-gradient-${width}.png`});
+    await page.screenshot({path:`../../outputs/distinct-tested-gradient-${width}.png`});
     await page.getByRole("link", {name:"How to use",exact:true}).click();
     await page.getByRole("heading", {name:"How to use Gradient Lab"}).scrollIntoViewIfNeeded();
-    await page.screenshot({path:`../../outputs/refined-gradient-guide-${width}.png`});
+    await page.screenshot({path:`../../outputs/distinct-tested-gradient-guide-${width}.png`});
   });
 }
