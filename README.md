@@ -8,14 +8,14 @@ How do update rules and learning rates change the path down the **same objective
 
 ## Try it
 
-1. Begin on the paused elliptic bowl. Take one **Step** and open **Step details** beside playback to inspect the numeric update.
+1. Begin on the paused elliptic bowl. Take one **Step** and open **Step details** beneath the iteration scrubber to inspect the numeric update.
 2. **Add to comparison**, switch from gradient descent to Adam, and compare the paths and losses.
-3. Try **Presets → Large learning rate**. The path can leave the viewport and terminate at an explicit safety limit.
+3. Try **Large learning rate**. The path can leave the viewport and terminate at an explicit safety limit.
 4. Move to Rosenbrock or either non-convex surface. Share the current configuration or download all compared traces.
 
 The two retained runs plus the current run share a function and start. Changing either clears comparisons. Reset rewinds the same seeded experiment; **New start** explicitly changes it. The 3D bowl opens paused. Contour is an equal-scale overhead view with click-to-place coordinates. **How to use** explains the surface and offers three experiments below the tool; returning preserves the current selection.
 
-On a wide screen, settings, the surface, and the loss curve sit alongside each other. Smaller screens put essential settings above the surface and results below it. Saved comparisons survive these layout changes.
+On a wide screen, settings, the surface, and the loss curve sit alongside each other. Smaller screens put essential settings and a compact loss trend above the surface, with the full results below. **Add to comparison** sits directly beneath the plot; saved configurations replay at the shared iteration. Saved comparisons survive these layout changes.
 
 ## Mathematics
 
