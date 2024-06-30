@@ -252,12 +252,14 @@ export default function App() {
               }
             />
           </div>
-      <details className="presets" aria-label="Experiment presets">
-        <summary>Presets</summary>
-        <button onClick={() => preset("stable")}>Stable descent</button>
-        <button onClick={() => preset("unstable")}>Large learning rate</button>
-        <button onClick={() => preset("valley")}>Rosenbrock momentum</button>
-      </details>
+          <div className="presets" role="group" aria-label="Experiment presets">
+            <span className="preset-label">Try</span>
+            <button onClick={() => preset("stable")}>Stable descent</button>
+            <button onClick={() => preset("unstable")}>Large learning rate</button>
+            <details><summary>More presets</summary>
+              <button onClick={() => preset("valley")}>Rosenbrock momentum</button>
+            </details>
+          </div>
         </section>
         <section className="experiment" aria-label="Experiment visualization">
           <div className="plot-heading">
@@ -301,43 +303,15 @@ export default function App() {
             >
               Reset
             </button>
-            <label>
-              Speed{" "}
-              <select
-                value={speed}
-                onChange={(e) => setSpeed(Number(e.target.value))}
-              >
-                {[1, 2, 4].map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
-              </select>
-            </label>
             <span role="status">
               {running ? "Running" : "Paused"} · Step {cursor}
             </span>
             <strong className="live-loss">Loss {fmt(current?.loss)}</strong>
           </div>
-              <details className="step-details">
-                <summary>Step details</summary>
-                <p className="equation">
-                  {config.optimizer === "gd"
-                    ? "θₜ₊₁ = θₜ − αgₜ"
-                    : config.optimizer === "momentum"
-                      ? "vₜ₊₁ = βvₜ − αgₜ; θₜ₊₁ = θₜ + vₜ₊₁"
-                      : "θₜ₊₁ = θₜ − αm̂ₜ / (√v̂ₜ + ε)"}
-                </p>
-                {current?.dx !== undefined && (
-                  <p>
-                    Next x update: {fmt(current.x)} + ({fmt(current.dx)}) ={" "}
-                    {fmt(current.x + current.dx)}. Gradient x:{" "}
-                    {fmt(current.gradX)}
-                    {config.noise > 0
-                      ? `; after noise: ${fmt(current.noisyGradX)}`
-                      : ""}
-                    .
-                  </p>
-                )}
-              </details>
+          <div className="mobile-feedback">
+            <LossTrend runs={runs} cursor={cursor} />
+            <span>Lower on the surface means lower loss.</span>
+          </div>
           <LandscapeCanvas
             objective={objective}
             runs={runs}
@@ -345,8 +319,14 @@ export default function App() {
             viewMode={view}
             onStart={setStart}
           />
+          <div className="comparison-action">
+            <button disabled={!!savedCurrent || retained.length >= 2} onClick={retain}>
+              {savedCurrent ? "Added to comparison" : "Add to comparison"}
+            </button>
+            {runs.length > 1 && <span>All runs at iteration {cursor}</span>}
+          </div>
           <p className="caption">
-            {view === "contour" ? "Colour" : "Height and colour"}:{" "}
+            The point is a pair of parameters. {view === "contour" ? "Colour" : "Height and colour"}:{" "}
             {objective.id === "bowl" ? "loss (linear scale)" : "log(1 + loss)"}.
             {view === "contour"
               ? " Click inside the axes to set the starting point."
@@ -366,6 +346,40 @@ export default function App() {
             />
           </label>
 
+              <details className="step-details">
+                <summary>Step details</summary>
+            <label>
+              Speed{" "}
+              <select
+                value={speed}
+                onChange={(e) => setSpeed(Number(e.target.value))}
+              >
+                {[1, 2, 4].map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </label>
+                <p className="equation">
+                  {config.optimizer === "gd"
+                    ? "θₜ₊₁ = θₜ − αgₜ"
+                    : config.optimizer === "momentum"
+                      ? "vₜ₊₁ = βvₜ − αgₜ; θₜ₊₁ = θₜ + vₜ₊₁"
+                      : "θₜ₊₁ = θₜ − αm̂ₜ / (√v̂ₜ + ε)"}
+                </p>
+                {current?.dx !== undefined && (
+                  <p>
+                    Next x update: {fmt(current.x)} + ({fmt(current.dx)}) ={" "}
+                    {fmt(current.x + current.dx)}. Gradient x:{" "}
+                    {fmt(current.gradX)}
+                    {config.noise > 0
+                      ? `; after noise: ${fmt(current.noisyGradX)}`
+                      : ""}
+                    .
+                  </p>
+                )}
+                <p>Gradient norm: {fmt(current?.gradNorm)}. Smaller does not by itself prove a minimum.</p>
+              </details>
+
         </section>
           <section className="results" aria-label="Experiment results">
             <LossComparison runs={runs} cursor={cursor} />
@@ -374,7 +388,7 @@ export default function App() {
               <h2>{summary.status}</h2>
               <p>
                 {current
-                  ? `At step ${current.iteration}, loss is ${fmt(current.loss)} and the gradient norm is ${fmt(current.gradNorm)}.`
+                  ? `Loss ${fmt(current.loss)} · started at ${fmt(result.trace[0].loss)}.`
                   : "The initial state could not be evaluated."}{" "}
                 {cursor >= result.trace.length - 1
                   ? `Stopped: ${result.termination.replaceAll("_", " ")}.`
@@ -383,12 +397,12 @@ export default function App() {
                     : "Paused."}
               </p>
 
+              {cursor >= result.trace.length - 1 && ["safety_limit", "numerical_failure"].includes(result.termination) &&
+                <button onClick={() => preset("stable")}>Return to stable descent</button>}
             </div>
           <section className="saved-runs" aria-label="Saved comparisons">
-            <h2>Compare</h2>
-            <button disabled={!!savedCurrent || retained.length >= 2} onClick={retain}>
-              {savedCurrent ? "Added to comparison" : "Add to comparison"}
-            </button>
+            <h2>Saved comparisons</h2>
+            <p>Saved settings replay alongside the current run at the same iteration.</p>
             <p>{retained.length} of 2 saved · current run also shown</p>
             {retained.map((run) => <div className="saved-run" key={run.key}>
               <span style={{ color: COLORS[run.slot] }}>{runLabel(run.config)}</span>
@@ -404,6 +418,7 @@ export default function App() {
         <aside className="controls advanced-controls" aria-label="Advanced experiment controls">
           <details className="advanced">
             <summary>Advanced settings</summary>
+            <button className="mobile-preset" onClick={() => preset("valley")}>Rosenbrock momentum</button>
             <label>
               {config.optimizer === "adam" ? "First moment β₁" : "Momentum β"}{" "}
               <span className="control-value">{fmt(config.momentum)}</span>
@@ -578,6 +593,7 @@ function LossComparison({ runs, cursor }) {
   return (
     <figure ref={chartRef}>
       <figcaption>Loss over iteration · log(1 + loss)</figcaption>
+      {runs.length > 1 && <p className="comparison-clock">All runs at iteration {cursor}; stopped runs keep their last point.</p>}
       <svg
         viewBox={`0 0 ${W} ${H}`}
         role="img"
@@ -636,4 +652,19 @@ function LossComparison({ runs, cursor }) {
       </p>
     </figure>
   );
+}
+
+function LossTrend({ runs, cursor }) {
+  const traces = runs.map(run => run.result.trace.slice(0, cursor + 1));
+  const high = Math.max(1, ...traces.flat().map(point => Math.log1p(Math.max(0, point.loss))));
+  return <figure className="loss-trend">
+    <figcaption>Loss trend</figcaption>
+    <svg viewBox="0 0 120 32" role="img" aria-label={`Loss trend through iteration ${cursor}; full chart below`}>
+      {traces.map((trace, i) => <g key={runs[i].key}><polyline fill="none" stroke={COLORS[runs[i].slot]} strokeWidth="2"
+        strokeDasharray={runs[i].slot === 1 ? "6 3" : runs[i].slot === 2 ? "2 2" : undefined}
+        points={trace.map(point => `${2 + point.iteration / Math.max(1, cursor) * 116},${30 - Math.log1p(Math.max(0, point.loss)) / high * 28}`).join(" ")} />
+        <circle cx={2 + trace.at(-1).iteration / Math.max(1,cursor) * 116} cy={30 - Math.log1p(Math.max(0,trace.at(-1).loss))/high*28} r="2" fill={COLORS[runs[i].slot]} />
+      </g>)}
+    </svg>
+  </figure>;
 }
