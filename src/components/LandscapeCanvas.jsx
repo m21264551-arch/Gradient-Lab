@@ -50,10 +50,10 @@ export default function LandscapeCanvas({
     () => landscapeGeometry(objective, surface, size.w, size.h, viewMode),
     [objective, surface, size, viewMode],
   );
-  const outside = runs.flatMap((run, i) => {
+  const outside = runs.flatMap((run) => {
     const p =
       run.result.trace[Math.min(currentIndex, run.result.trace.length - 1)];
-    return p && !geometry.inDomain(p) ? [`Run ${i + 1}`] : [];
+    return p && !geometry.inDomain(p) ? [run] : [];
   });
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) =>
@@ -204,7 +204,19 @@ export default function LandscapeCanvas({
     runs.forEach((run, i) => {
       const p =
         run.result.trace[Math.min(currentIndex, run.result.trace.length - 1)];
-      if (!p || !geometry.inDomain(p)) return;
+      if (!p) return;
+      if (!geometry.inDomain(p)) {
+        // Display-only direction marker; the simulation point remains untouched.
+        const center=project((a+b)/2,(a+b)/2,0), projected=project(p.x,p.y,0);
+        const angle=Math.atan2(projected.y-center.y,projected.x-center.x);
+        const dx=Math.cos(angle),dy=Math.sin(angle);
+        const distance=Math.min((w/2-22)/Math.max(Math.abs(dx),1e-9),(h/2-22)/Math.max(Math.abs(dy),1e-9));
+        const tip={x:w/2+dx*distance,y:h/2+dy*distance};
+        ctx.save();ctx.translate(tip.x,tip.y);ctx.rotate(angle);ctx.beginPath();
+        ctx.moveTo(8,0);ctx.lineTo(-6,-6);ctx.lineTo(-6,6);ctx.closePath();
+        ctx.fillStyle=RUN_COLORS[run.slot ?? i];ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();ctx.restore();
+        return;
+      }
       const v = projectTracePoint(p, surface, geometry);
       ctx.beginPath();
       ctx.arc(v.x, v.y, 7, 0, Math.PI * 2);
@@ -279,8 +291,7 @@ export default function LandscapeCanvas({
       </div>
       {outside.length > 0 && (
         <p className="outside-view" role="status">
-          {outside.join(", ")} outside the plotted area. The coordinates
-          continue unchanged; inspect the loss or download the trace.
+          {outside.map((run,i) => <span key={run.key} style={{color:RUN_COLORS[run.slot ?? i]}}>{i ? "; " : ""}{runLabel(run.config)}</span>)} outside the plotted area; the matching edge arrow shows direction in the x–y plane. The simulation continues without constraining its coordinates. Inspect the loss or download the trace.
         </p>
       )}
     </>
