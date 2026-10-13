@@ -4,12 +4,12 @@ How do update rules and learning rates change the path down the **same objective
 
 [Interactive experiment](https://gradient.m21264551.com) · [Case study](docs/case-study.md)
 
-![The experiment bench](docs/experiment-desktop.png)
+![The experiment bench](docs/compact-desktop.jpg)
 
 ## Try it
 
 1. Begin on the paused elliptic bowl. Take one **Step** and inspect the numeric update below the plot.
-2. **Retain run**, switch from gradient descent to Adam, and compare the paths and losses.
+2. **Add to comparison**, switch from gradient descent to Adam, and compare the paths and losses.
 3. Try the excessive-rate preset. The path can leave the viewport and terminate at an explicit safety limit.
 4. Move to Rosenbrock or either non-convex surface. Share the current configuration or download all compared traces.
 

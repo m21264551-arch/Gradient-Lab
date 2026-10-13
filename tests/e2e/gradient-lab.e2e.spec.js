@@ -6,7 +6,7 @@ test("a visitor can step, retain, compare, and reset an experiment", async ({
   await expect(page.getByLabel("Function")).toHaveValue("bowl");
   await page.getByRole("button", { name: "Step", exact: true }).click();
   await expect(page.getByText("Paused · Step 1")).toBeVisible();
-  await page.getByRole("button", { name: /Retain run/ }).click();
+  await page.getByRole("button", { name: /Add to comparison/ }).click();
   await page.getByLabel("Optimizer").selectOption("adam");
   await expect(page.getByRole("table")).toContainText("gd / 0.08");
   await expect(page.getByRole("table")).toContainText("adam / 0.08");
@@ -17,9 +17,7 @@ test("large learning rates produce an explicit failure rather than a bounded fak
   page,
 }) => {
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "What if the step is too large?" })
-    .click();
+  await page.getByRole("button", { name: "Large learning rate" }).click();
   await page.getByLabel("Inspect iteration").focus();
   await page.getByLabel("Inspect iteration").press("End");
   await expect(page.getByRole("table")).toContainText("safety limit");
@@ -29,7 +27,7 @@ test("URL round trip preserves the experiment and rejects unknown versions", asy
 }) => {
   await page.goto("/");
   await page.getByLabel("Optimizer").selectOption("adam");
-  await page.getByRole("button", { name: "Share current experiment" }).click();
+  await page.getByRole("button", { name: "Share experiment" }).click();
   const url = page.url();
   await page.goto(url);
   await expect(page.getByLabel("Optimizer")).toHaveValue("adam");
@@ -38,11 +36,12 @@ test("URL round trip preserves the experiment and rejects unknown versions", asy
 });
 test("a shared start change clears retained runs", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: /Retain run/ }).click();
+  await page.getByRole("button", { name: /Add to comparison/ }).click();
+  await page.getByText("Starting point", { exact: true }).click();
   await page.getByRole("spinbutton", { name: "x", exact: true }).fill("1");
-  await expect(page.getByRole("button", { name: /Retain run/ })).toContainText(
-    "(0/2)",
-  );
+  await expect(
+    page.getByRole("button", { name: /Add to comparison/ }),
+  ).toContainText("(0/2)");
 });
 
 test("rendering and playback controls cannot change downloaded mathematics", async ({
@@ -51,7 +50,7 @@ test("rendering and playback controls cannot change downloaded mathematics", asy
   await page.goto("/");
   async function downloadTrace() {
     const pending = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Download all traces" }).click();
+    await page.getByRole("button", { name: "Download traces" }).click();
     const download = await pending;
     const stream = await download.createReadStream();
     let text = "";
@@ -60,7 +59,9 @@ test("rendering and playback controls cannot change downloaded mathematics", asy
   }
   const before = await downloadTrace();
   await page.getByRole("button", { name: "3D View", exact: true }).click();
-  await page.getByRole("combobox", { name: "Speed", exact: true }).selectOption("4");
+  await page
+    .getByRole("combobox", { name: "Speed", exact: true })
+    .selectOption("4");
   await page.getByRole("button", { name: "Step", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   const after = await downloadTrace();
