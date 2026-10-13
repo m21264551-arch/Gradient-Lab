@@ -40,6 +40,11 @@ export default [
     },
     rules: {
       ...jsxA11y.configs.recommended.rules,
+      // Scrollable named regions must accept keyboard focus.
+      "jsx-a11y/no-noninteractive-tabindex": [
+        "error",
+        { roles: ["tabpanel", "region"] },
+      ],
       ...reactHooks.configs.recommended.rules,
       "react/jsx-uses-vars": "error",
       "no-unused-vars": [
