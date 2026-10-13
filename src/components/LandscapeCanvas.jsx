@@ -1,6 +1,40 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { buildSurface } from "../lib/objectives";
-const COLORS = ["#254f9c", "#b34828", "#6f4d8c"];
+import {
+  displaySurface,
+  landscapeGeometry,
+  projectTracePoint,
+  RUN_COLORS,
+  runLabel,
+} from "../lib/landscape";
+function surfaceColor(z) {
+  const stops = [
+    [30, 107, 158],
+    [116, 185, 203],
+    [222, 232, 197],
+    [242, 192, 94],
+    [187, 76, 49],
+  ];
+  const t = Math.max(0, Math.min(1, z)) * (stops.length - 1),
+    i = Math.min(stops.length - 2, Math.floor(t));
+  return `rgb(${stops[i].map((v, c) => Math.round(v + (stops[i + 1][c] - v) * (t - i))).join(",")})`;
+}
+function label(
+  ctx,
+  point,
+  text,
+  canvasWidth,
+  color = "#263842",
+  below = false,
+) {
+  ctx.font = "600 12px system-ui";
+  const width = ctx.measureText(text).width + 12;
+  const x = Math.max(4, Math.min(canvasWidth - width - 4, point.x + 12)),
+    y = Math.max(22, point.y + (below ? 32 : -10));
+  ctx.fillStyle = "rgba(255,255,255,.94)";
+  ctx.fillRect(x, y - 16, width, 23);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x + 6, y);
+}
 export default function LandscapeCanvas({
   objective,
   runs,
@@ -9,15 +43,26 @@ export default function LandscapeCanvas({
   onStart,
 }) {
   const ref = useRef(null),
-    [size, setSize] = useState({ w: 800, h: 280 });
-  const surface = useMemo(() => buildSurface(objective, 60), [objective]);
+    wrap = useRef(null),
+    [size, setSize] = useState({ w: 800, h: 420 });
+  const surface = useMemo(() => displaySurface(objective), [objective]);
+  const geometry = useMemo(
+    () => landscapeGeometry(objective, surface, size.w, size.h, viewMode),
+    [objective, surface, size, viewMode],
+  );
+  const outside = runs.flatMap((run, i) => {
+    const p =
+      run.result.trace[Math.min(currentIndex, run.result.trace.length - 1)];
+    return p && !geometry.inDomain(p) ? [`Run ${i + 1}`] : [];
+  });
   useEffect(() => {
-    const canvas = ref.current,
-      observer = new ResizeObserver((entries) => {
-        const w = Math.max(240, entries[0].contentRect.width);
-        setSize({ w, h: 280 });
-      });
-    observer.observe(canvas.parentElement);
+    const observer = new ResizeObserver(([entry]) =>
+      setSize({
+        w: Math.max(240, entry.contentRect.width),
+        h: entry.contentRect.height,
+      }),
+    );
+    observer.observe(wrap.current);
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
@@ -30,165 +75,214 @@ export default function LandscapeCanvas({
     canvas.height = h * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    const [a, b] = objective.domain,
-      pad = 40,
-      project = (x, y, z = 0) =>
-        viewMode === "contour"
-          ? {
-              x: pad + ((x - a) / (b - a)) * (w - 2 * pad),
-              y: h - pad - ((y - a) / (b - a)) * (h - 2 * pad),
-            }
-          : {
-              x: w / 2 + ((x - y) / (b - a)) * w * 0.35,
-              y: h * 0.6 + ((x + y) / (b - a)) * h * 0.2 - z * h * 0.35,
-            };
-    ctx.fillStyle = "#fafbf9";
+    ctx.fillStyle = "#f8fbfc";
     ctx.fillRect(0, 0, w, h);
+    const { project } = geometry,
+      [a, b] = objective.domain;
+    const polygon = (points) => {
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        const v = project(p.x, p.y, p.z);
+        if (i) ctx.lineTo(v.x, v.y);
+        else ctx.moveTo(v.x, v.y);
+      });
+      ctx.closePath();
+    };
+    polygon([
+      { x: a, y: a, z: 0 },
+      { x: b, y: a, z: 0 },
+      { x: b, y: b, z: 0 },
+      { x: a, y: b, z: 0 },
+    ]);
+    ctx.fillStyle = "#edf2f3";
+    ctx.fill();
+    ctx.strokeStyle = "#c9d4d9";
+    ctx.stroke();
     const cells = [];
     for (let j = 0; j < surface.rows.length - 1; j++)
-      for (let i = 0; i < surface.rows[j].length - 1; i++) {
-        const q = [
+      for (let i = 0; i < surface.rows[j].length - 1; i++)
+        cells.push([
           surface.rows[j][i],
           surface.rows[j][i + 1],
           surface.rows[j + 1][i + 1],
           surface.rows[j + 1][i],
-        ];
-        cells.push(q);
-      }
-    if (viewMode !== "contour")
+        ]);
+    if (viewMode === "3d")
       cells.sort((x, y) => x[0].x + x[0].y - y[0].x - y[0].y);
     for (const q of cells) {
-      const z = q.reduce((s, p) => s + p.z, 0) / 4;
-      ctx.beginPath();
-      q.forEach((p, i) => {
-        const v = project(p.x, p.y, p.z);
-        if (i === 0) ctx.moveTo(v.x, v.y);
-        else ctx.lineTo(v.x, v.y);
-      });
-      ctx.closePath();
-      ctx.fillStyle = `hsl(215 22% ${98 - 28 * z}%)`;
-      ctx.fill();
+      polygon(q);
+      ctx.fillStyle = surfaceColor(q.reduce((s, p) => s + p.z, 0) / 4);
+      if (viewMode === "contour") {
+        const topLeft = project(q[3].x, q[3].y);
+        const bottomRight = project(q[1].x, q[1].y);
+        ctx.fillRect(
+          topLeft.x,
+          topLeft.y,
+          bottomRight.x - topLeft.x + 0.5,
+          bottomRight.y - topLeft.y + 0.5,
+        );
+      } else {
+        ctx.fill();
+      }
+      if (viewMode === "3d") {
+        ctx.strokeStyle = "rgba(28,55,64,.12)";
+        ctx.lineWidth = 0.45;
+        ctx.stroke();
+      }
     }
-    // Marching-square segments at fixed normalized log-height levels.
     if (viewMode === "contour") {
-      ctx.strokeStyle = "#63798d70";
-      ctx.lineWidth = 0.7;
-      for (const level of [0.04, 0.1, 0.2, 0.35, 0.5, 0.7, 0.9])
+      ctx.strokeStyle = "rgba(27,61,78,.48)";
+      ctx.lineWidth = 0.8;
+      for (const level of [0.05, 0.12, 0.23, 0.38, 0.56, 0.76, 0.94])
         for (const q of cells) {
-          const cross = [];
+          const crossings = [];
           for (let i = 0; i < 4; i++) {
             const p = q[i],
               r = q[(i + 1) % 4];
             if (p.z < level !== r.z < level) {
               const t = (level - p.z) / (r.z - p.z);
-              cross.push(project(p.x + t * (r.x - p.x), p.y + t * (r.y - p.y)));
+              crossings.push(
+                project(p.x + t * (r.x - p.x), p.y + t * (r.y - p.y)),
+              );
             }
           }
-          for (let i = 0; i + 1 < cross.length; i += 2) {
+          for (let i = 0; i + 1 < crossings.length; i += 2) {
             ctx.beginPath();
-            ctx.moveTo(cross[i].x, cross[i].y);
-            ctx.lineTo(cross[i + 1].x, cross[i + 1].y);
+            ctx.moveTo(crossings[i].x, crossings[i].y);
+            ctx.lineTo(crossings[i + 1].x, crossings[i + 1].y);
             ctx.stroke();
           }
         }
     }
-    ctx.save();
-    ctx.beginPath();
-    if (viewMode === "contour") ctx.rect(pad, pad, w - pad * 2, h - pad * 2);
-    else ctx.rect(0, 0, w, h);
-    ctx.clip();
-    const inDomain = (p) => p.x >= a && p.x <= b && p.y >= a && p.y <= b;
-    runs.forEach((r, i) => {
-      ctx.strokeStyle = COLORS[i];
-      ctx.fillStyle = COLORS[i];
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash(i === 1 ? [7, 4] : i === 2 ? [2, 3] : []);
+    runs.forEach((run, i) => {
+      const points = run.result.trace.slice(0, currentIndex + 1);
       ctx.beginPath();
       let connected = false;
-      const trace = r.result.trace.slice(0, currentIndex + 1);
-      for (const p of trace) {
-        if (!inDomain(p)) {
+      for (const p of points) {
+        if (!geometry.inDomain(p)) {
           connected = false;
           continue;
         }
-        const z =
-            (Math.log1p(Math.max(0, p.loss)) - surface.minLog) /
-            Math.max(1e-9, surface.maxLog - surface.minLog),
-          v = project(p.x, p.y, z);
+        const v = projectTracePoint(p, surface, geometry);
         if (connected) ctx.lineTo(v.x, v.y);
         else ctx.moveTo(v.x, v.y);
         connected = true;
       }
+      ctx.setLineDash(i === 1 ? [7, 4] : i === 2 ? [2, 4] : []);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(255,255,255,.85)";
+      ctx.lineWidth = 5;
       ctx.stroke();
-      const p = trace.at(-1);
-      if (p && inDomain(p)) {
-        const v = project(
-          p.x,
-          p.y,
-          (Math.log1p(Math.max(0, p.loss)) - surface.minLog) /
-            (surface.maxLog - surface.minLog),
-        );
-        ctx.beginPath();
-        ctx.arc(v.x, v.y, 5, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      ctx.strokeStyle = RUN_COLORS[i];
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
     });
-    ctx.setLineDash([]);
-    ctx.strokeStyle = "#111827";
-    ctx.lineWidth = 2;
-    for (const p of objective.minima) {
-      const z =
-          (Math.log1p(Math.max(0, objective.f(p.x, p.y))) - surface.minLog) /
-          (surface.maxLog - surface.minLog),
-        v = project(p.x, p.y, z);
+    objective.minima.forEach((p, i) => {
+      const v = projectTracePoint(
+        { ...p, loss: objective.f(p.x, p.y) },
+        surface,
+        geometry,
+      );
       ctx.beginPath();
-      ctx.moveTo(v.x - 6, v.y);
-      ctx.lineTo(v.x + 6, v.y);
-      ctx.moveTo(v.x, v.y - 6);
-      ctx.lineTo(v.x, v.y + 6);
+      ctx.arc(v.x, v.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = "#12633f";
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
       ctx.stroke();
-    }
-    ctx.restore();
-    ctx.fillStyle = "#344050";
-    ctx.font = "12px system-ui";
-    ctx.fillText("x", w - 22, h - 20);
-    ctx.fillText("y", 15, 24);
-    if (viewMode === "contour") {
-      ctx.fillText(String(a), pad, h - 15);
-      ctx.fillText(String(b), w - pad, h - 15);
-      ctx.fillText(String(b), 10, pad);
-      ctx.fillText(String(a), 10, h - pad);
-    }
-    ctx.fillText("＋ known minimum", pad, 22);
-  }, [size, surface, objective, runs, currentIndex, viewMode]);
-  function place(event) {
-    if (viewMode !== "contour") return;
-    const rect = ref.current.getBoundingClientRect(),
-      x = event.clientX - rect.left,
-      y = event.clientY - rect.top,
-      pad = 40,
-      [a, b] = objective.domain;
-    if (x < pad || x > size.w - pad || y < pad || y > size.h - pad) return;
-    onStart({
-      x: Number((a + ((x - pad) / (size.w - 2 * pad)) * (b - a)).toFixed(3)),
-      y: Number((b - ((y - pad) / (size.h - 2 * pad)) * (b - a)).toFixed(3)),
+      label(
+        ctx,
+        v,
+        objective.minima.length > 1 ? `Minimum ${i + 1}` : "Minimum",
+        w,
+        "#145537",
+        true,
+      );
     });
+    runs.forEach((run, i) => {
+      const p =
+        run.result.trace[Math.min(currentIndex, run.result.trace.length - 1)];
+      if (!p || !geometry.inDomain(p)) return;
+      const v = projectTracePoint(p, surface, geometry);
+      ctx.beginPath();
+      ctx.arc(v.x, v.y, 7, 0, Math.PI * 2);
+      ctx.fillStyle = RUN_COLORS[i];
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      if (i === runs.length - 1)
+        label(ctx, v, currentIndex === 0 ? "Start" : "Current", w);
+    });
+    ctx.fillStyle = "#344954";
+    ctx.font = "12px system-ui";
+    if (viewMode === "contour") {
+      const r = geometry.bounds;
+      ctx.fillText(String(a), r.left, r.top + r.side + 18);
+      ctx.fillText(String(b), r.left + r.side - 8, r.top + r.side + 18);
+      ctx.fillText(String(b), r.left - 22, r.top + 5);
+      ctx.fillText(String(a), r.left - 22, r.top + r.side);
+      ctx.fillText("x", r.left + r.side + 14, r.top + r.side);
+      ctx.fillText("y", r.left - 20, r.top - 12);
+    } else {
+      const x = project(b, a, 0),
+        y = project(a, b, 0);
+      ctx.fillText("x", x.x + 8, x.y + 18);
+      ctx.fillText("y", y.x - 18, y.y + 18);
+    }
+  }, [size, surface, objective, runs, currentIndex, viewMode, geometry]);
+  function place(event) {
+    const rect = ref.current.getBoundingClientRect(),
+      p = geometry.unproject(
+        ((event.clientX - rect.left) * size.w) / rect.width,
+        ((event.clientY - rect.top) * size.h) / rect.height,
+      );
+    if (p) onStart({ x: +p.x.toFixed(3), y: +p.y.toFixed(3) });
   }
   return (
-    <div className="landscape-wrap">
-      <canvas
-        ref={ref}
-        style={{ width: "100%", height: size.h }}
-        role="img"
-        aria-label="Loss landscape visualization"
-        aria-describedby="landscape-summary"
-        onPointerDown={place}
-      />
+    <>
+      <div className="landscape-wrap" ref={wrap}>
+        <canvas
+          ref={ref}
+          role="img"
+          aria-label="Loss landscape visualization"
+          aria-describedby="landscape-summary"
+          onPointerDown={place}
+        />
+      </div>
       <p className="sr-only" id="landscape-summary">
-        Loss landscape for {objective.name}. Step {currentIndex}. Numeric
-        results and distance to the nearest known minimum are in the comparison
-        table. Starting coordinates can be entered in Shared start.
+        {viewMode === "3d"
+          ? "Three-dimensional surface"
+          : "Equal-scale contour map"}{" "}
+        for {objective.name}. Step {currentIndex}. Height and colour show{" "}
+        {surface.scaleLabel}. The white-ring point is the current position;
+        green marks a known minimum. Starting coordinates can be entered in
+        Starting point.
       </p>
-    </div>
+      <div className="plot-key" aria-label="Path legend">
+        {runs.map((run, i) => (
+          <span key={i}>
+            <i
+              style={{
+                borderColor: RUN_COLORS[i],
+                borderStyle: i === 1 ? "dashed" : i === 2 ? "dotted" : "solid",
+              }}
+            />{" "}
+            {runLabel(run.config)}
+          </span>
+        ))}
+        <span>
+          <b className="minimum-key" /> Known minimum
+        </span>
+      </div>
+      {outside.length > 0 && (
+        <p className="outside-view" role="status">
+          {outside.join(", ")} outside the plotted area. The coordinates
+          continue unchanged; inspect the loss or download the trace.
+        </p>
+      )}
+    </>
   );
 }

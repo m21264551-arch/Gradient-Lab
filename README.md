@@ -4,7 +4,7 @@ How do update rules and learning rates change the path down the **same objective
 
 [Interactive experiment](https://gradient.m21264551.com) · [Case study](docs/case-study.md)
 
-![The experiment bench](docs/compact-desktop.jpg)
+![The experiment bench](docs/bowl-desktop.png)
 
 ## Try it
 
@@ -13,7 +13,7 @@ How do update rules and learning rates change the path down the **same objective
 3. Try the excessive-rate preset. The path can leave the viewport and terminate at an explicit safety limit.
 4. Move to Rosenbrock or either non-convex surface. Share the current configuration or download all compared traces.
 
-The two retained runs plus the current run share a function and start. Changing either clears comparisons. Reset rewinds the same seeded experiment; **New start** explicitly changes it. The contour is the default; 3D is an optional transformed view.
+The two retained runs plus the current run share a function and start. Changing either clears comparisons. Reset rewinds the same seeded experiment; **New start** explicitly changes it. The 3D bowl opens paused. Contour is an equal-scale overhead view with click-to-place coordinates. **How to use** explains the surface and offers three experiments below the tool; returning preserves the current selection.
 
 ## Mathematics
 
@@ -34,11 +34,11 @@ There is **no hidden update cap or parameter projection**. Rendering clips paths
 
 Numerical and safety stops preserve the last valid state and record the attempted iteration. The UI separately identifies closeness to a known minimum. Saddle + Walls has two symmetric minima; the origin is a stationary saddle. Ripple Basin's minimum is obtained by root-solving its analytic derivative. Tests check gradients by independent finite differences and check all marked minima.
 
-Both surface height/colour and loss plots use labelled log transforms. These transforms affect rendering only.
+The bowl uses linear loss for height and colour; other surfaces use labelled log(1 + loss). The loss chart uses its labelled log transform. A shared orthographic projection fits the mesh, paths and minima uniformly on resize; contour axes have equal pixels per unit. All transforms affect rendering only.
 
 ## Architecture and result contract
 
-`src/lib/objectives.js` owns exact objectives, seeded simulation, configuration validation and the version-1 result contract. A result includes `trace`, `termination`, `attemptedIteration` and diagnostics. `App.jsx` owns playback and up to three comparison configurations. `LandscapeCanvas.jsx` renders them without advancing the mathematics.
+`src/lib/objectives.js` owns exact objectives, seeded simulation, configuration validation and the version-1 result contract. A result includes `trace`, `termination`, `attemptedIteration` and diagnostics. `App.jsx` owns playback and up to three comparison configurations. `LandscapeCanvas.jsx` renders them through shared mappings in `src/lib/landscape.js` without advancing the mathematics.
 
 A shared URL contains one validated version-1 configuration. Unknown versions and invalid values produce a visible explanation. Downloaded JSON preserves every retained configuration, full trace, seed and termination reason. No server, accounts, uploads or external inference are needed.
 
