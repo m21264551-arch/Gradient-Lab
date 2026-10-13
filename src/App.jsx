@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_CONFIG,
   OBJECTIVES,
@@ -40,7 +40,11 @@ export default function App() {
     [running, setRunning] = useState(false),
     [speed, setSpeed] = useState(1),
     [view, setView] = useState("3d"),
-    [message, setMessage] = useState("");
+    [message, setMessage] = useState(""),
+    [undo, setUndo] = useState(null),
+    [currentSlot, setCurrentSlot] = useState(0);
+  const configKey = (value) => encodeExperiment(value);
+  const savedCurrent = retained.find((r) => r.key === configKey(config));
   const objective = getObjective(config.objectiveId);
   const result = useMemo(
     () =>
@@ -51,18 +55,32 @@ export default function App() {
     [config],
   );
   const runs = useMemo(
-    () => [...retained, { config, result }],
-    [retained, config, result],
+    () => [...retained.filter((r) => r.key !== encodeExperiment(config)),
+      { config, result, slot: savedCurrent?.slot ?? currentSlot, current: true,
+        key: encodeExperiment(config) }],
+    [retained, config, result, savedCurrent, currentSlot],
   );
   const last = Math.max(...runs.map((r) => r.result.trace.length - 1));
   const current = result.trace[Math.min(cursor, result.trace.length - 1)],
     summary = summarizeRun(result.trace, cursor, objective);
   function update(changes) {
-    setConfig((c) => ({ ...c, ...changes }));
+    const next = { ...config, ...changes };
+    const compatible = next.objectiveId === config.objectiveId &&
+      next.startPoint.x === config.startPoint.x && next.startPoint.y === config.startPoint.y;
+    if (!compatible && retained.length) {
+      setUndo({ config, retained, cursor, currentSlot });
+      setRetained([]);
+      setCurrentSlot(0);
+      setMessage("The function or start changed. Saved comparisons were cleared.");
+    } else {
+      if (!undo) setMessage("");
+      const existing = retained.find((r) => r.key === configKey(next));
+      setCurrentSlot(existing?.slot ?? [0, 1, 2].find((slot) => !retained.some((r) => r.slot === slot)) ?? 0);
+    }
+    setConfig(next);
     setCursor(0);
     setRunning(false);
     setError(null);
-    setMessage("");
   }
   useEffect(() => {
     if (!running) return;
@@ -81,7 +99,6 @@ export default function App() {
     return () => document.removeEventListener("visibilitychange", pause);
   }, []);
   function preset(name) {
-    setRetained([]);
     const rosen = name === "valley";
     update({
       ...DEFAULT_CONFIG,
@@ -92,17 +109,31 @@ export default function App() {
     });
   }
   function setStart(startPoint) {
-    setRetained([]);
     update({ startPoint });
   }
   function newStart() {
     const random = seededRandom(config.seed + 1),
       [a, b] = objective.domain;
-    setRetained([]);
     update({
       seed: config.seed + 1,
       startPoint: { x: a + (b - a) * random(), y: a + (b - a) * random() },
     });
+  }
+  function retain() {
+    if (savedCurrent || retained.length >= 2) return;
+    setUndo(null);
+    setRetained((r) => [...r, { config: { ...config }, result,
+      key: configKey(config), slot: currentSlot }]);
+    setMessage(`Added ${runLabel(config)} to comparison.`);
+  }
+  function restoreComparison() {
+    setConfig(undo.config);
+    setRetained(undo.retained);
+    setCursor(undo.cursor);
+    setCurrentSlot(undo.currentSlot);
+    setRunning(false);
+    setUndo(null);
+    setMessage("Previous experiment and comparisons restored.");
   }
   async function share() {
     const url = new URL(window.location.href);
@@ -175,6 +206,59 @@ export default function App() {
         <button onClick={() => preset("valley")}>Rosenbrock momentum</button>
       </div>
       <div className="bench" id="tool" tabIndex={-1}>
+        <section className="controls essential" aria-label="Basic settings">
+          <h2 className="sr-only">Settings</h2>
+          <label>
+            Function
+            <select
+              value={config.objectiveId}
+              onChange={(e) => {
+                const o = getObjective(e.target.value);
+                update({
+                  objectiveId: o.id,
+                  startPoint: o.start,
+                  learningRate: o.defaultLearningRate,
+                });
+              }}
+            >
+              {OBJECTIVES.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Optimizer
+            <select
+              value={config.optimizer}
+              onChange={(e) => update({ optimizer: e.target.value })}
+            >
+              {OPTIMIZERS.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="rate-control">
+            <label htmlFor="learning-rate">Learning rate α</label>
+            <LearningRateInput key={config.learningRate} value={config.learningRate} onCommit={(learningRate) => update({ learningRate })} />
+            <input
+              aria-label="Learning rate slider"
+              aria-valuetext={String(config.learningRate)}
+              type="range"
+              min="-5"
+              max="0"
+              step=".01"
+              value={Math.log10(config.learningRate)}
+              onChange={(e) =>
+                update({ learningRate: 10 ** Number(e.target.value) })
+              }
+            />
+          </div>
+        </section>
         <section className="experiment" aria-label="Experiment visualization">
           <div className="plot-heading">
             <h2>{objective.name}</h2>
@@ -231,6 +315,7 @@ export default function App() {
             <span role="status">
               {running ? "Running" : "Paused"} · Step {cursor}
             </span>
+            <strong className="live-loss">Loss {fmt(current?.loss)}</strong>
           </div>
           <LandscapeCanvas
             objective={objective}
@@ -260,6 +345,7 @@ export default function App() {
             />
           </label>
           <section className="results">
+            <LossComparison runs={runs} cursor={cursor} />
             <div>
               <p className="result-label">Current run</p>
               <h2>{summary.status}</h2>
@@ -295,60 +381,9 @@ export default function App() {
                 )}
               </details>
             </div>
-            <LossComparison runs={runs} cursor={cursor} />
           </section>
         </section>
-        <aside className="controls" aria-label="Experiment controls">
-          <h2>Settings</h2>
-          <label>
-            Function
-            <select
-              value={config.objectiveId}
-              onChange={(e) => {
-                const o = getObjective(e.target.value);
-                setRetained([]);
-                update({
-                  objectiveId: o.id,
-                  startPoint: o.start,
-                  learningRate: o.defaultLearningRate,
-                });
-              }}
-            >
-              {OBJECTIVES.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Optimizer
-            <select
-              value={config.optimizer}
-              onChange={(e) => update({ optimizer: e.target.value })}
-            >
-              {OPTIMIZERS.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Learning rate α{" "}
-            <span className="control-value">{fmt(config.learningRate)}</span>
-            <input
-              type="range"
-              min="-5"
-              max="0"
-              step=".01"
-              value={Math.log10(config.learningRate)}
-              onChange={(e) =>
-                update({ learningRate: 10 ** Number(e.target.value) })
-              }
-            />
-          </label>
+        <aside className="controls advanced-controls" aria-label="Advanced experiment controls">
           <details className="advanced">
             <summary>Advanced settings</summary>
             <label>
@@ -412,23 +447,26 @@ export default function App() {
               comparisons.
             </p>
           </details>
-          <button
-            disabled={retained.length >= 2}
-            onClick={() => {
-              setRetained((r) => [...r, { config: { ...config }, result }]);
-              setCursor(0);
-              setRunning(false);
-            }}
-          >
-            Add to comparison ({retained.length}/2)
-          </button>
-          <button disabled={!retained.length} onClick={() => setRetained([])}>
-            Clear comparisons
-          </button>
+          <section className="saved-runs" aria-label="Saved comparisons">
+            <h2>Compare</h2>
+            <button disabled={!!savedCurrent || retained.length >= 2} onClick={retain}>
+              {savedCurrent ? "Added to comparison" : "Add to comparison"}
+            </button>
+            <p>{retained.length} of 2 saved · current run also shown</p>
+            {retained.map((run) => <div className="saved-run" key={run.key}>
+              <span style={{ color: COLORS[run.slot] }}>{runLabel(run.config)}</span>
+              <button aria-label={`Remove ${runLabel(run.config)}`} onClick={() => {
+                setRetained((items) => items.filter((r) => r.key !== run.key));
+                setMessage(`Removed ${runLabel(run.config)}.`);
+              }}>Remove</button>
+            </div>)}
+          </section>
+          <div className="comparison-notice"><p role="status">{message}</p>
+            {undo && <button onClick={restoreComparison}>Undo</button>}</div>
         </aside>
       </div>
 
-      {retained.length > 0 && (
+      {runs.length > 1 && (
         <div
           className="table-wrap"
           tabIndex="0"
@@ -455,9 +493,8 @@ export default function App() {
                   s = summarizeRun(r.result.trace, cursor, objective);
                 return (
                   <tr key={i}>
-                    <th style={{ color: COLORS[i] }}>
-                      Run {i + 1}
-                      {i === runs.length - 1 ? " · current" : ""}
+                    <th style={{ color: COLORS[r.slot] }}>
+                      {r.current ? "Current" : "Saved"}
                     </th>
                     <td>{runLabel(r.config)}</td>
                     <td>{p?.iteration ?? "—"}</td>
@@ -477,9 +514,8 @@ export default function App() {
         </div>
       )}
       <div className="export">
-        <button onClick={share}>Share experiment</button>
+        <button onClick={share}>Copy current run link</button>
         <button onClick={download}>Download traces</button>
-        <span role="status">{message}</span>
       </div>
       <LearningGuide />
       <details className="method">
@@ -508,16 +544,37 @@ export default function App() {
     </main>
   );
 }
+function LearningRateInput({ value, onCommit }) {
+  const [draft, setDraft] = useState(String(value));
+  const [invalid, setInvalid] = useState(false);
+  function commit() {
+    const n = Number(draft);
+    if (!Number.isFinite(n) || n < 0.00001 || n > 1) { setInvalid(true); return; }
+    setInvalid(false);
+    if (n !== value) onCommit(n);
+  }
+  return <><input id="learning-rate" type="number" min="0.00001" max="1" step="any"
+    value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit}
+    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+    aria-invalid={invalid} aria-describedby={invalid ? "rate-error" : undefined} />
+    {invalid && <p id="rate-error" role="alert">Enter a rate between 0.00001 and 1.</p>}</>;
+}
 function LossComparison({ runs, cursor }) {
-  const W = 600,
-    H = 220,
+  const chartRef = useRef(null);
+  const [W, setWidth] = useState(600);
+  useEffect(() => {
+    const observer = new ResizeObserver(([entry]) => setWidth(Math.max(280, entry.contentRect.width)));
+    observer.observe(chartRef.current);
+    return () => observer.disconnect();
+  }, []);
+  const H = 220,
     P = 40,
     visible = runs.map((r) => r.result.trace.slice(0, cursor + 1)),
     points = visible.flat(),
     max = Math.max(1, ...points.map((p) => Math.log1p(Math.max(0, p.loss)))),
     steps = Math.max(1, cursor);
   return (
-    <figure>
+    <figure ref={chartRef}>
       <figcaption>Loss over iteration · log(1 + loss)</figcaption>
       <svg
         viewBox={`0 0 ${W} ${H}`}
@@ -534,7 +591,7 @@ function LossComparison({ runs, cursor }) {
               y2={H - P - t * (H - P - 12)}
               stroke="#e1e4e7"
             />
-            <text x="0" y={H - P - t * (H - P - 12)} fontSize="10">
+            <text x="0" y={H - P - t * (H - P - 12)} fontSize="12">
               {fmt(Math.expm1(t * max))}
             </text>
           </g>
@@ -543,9 +600,9 @@ function LossComparison({ runs, cursor }) {
           <polyline
             key={i}
             fill="none"
-            stroke={COLORS[i]}
+            stroke={COLORS[runs[i].slot]}
             strokeWidth="2"
-            strokeDasharray={i === 1 ? "6 3" : i === 2 ? "2 2" : undefined}
+            strokeDasharray={runs[i].slot === 1 ? "6 3" : runs[i].slot === 2 ? "2 2" : undefined}
             points={trace
               .map(
                 (p) =>
@@ -554,17 +611,18 @@ function LossComparison({ runs, cursor }) {
               .join(" ")}
           />
         ))}
+        <text x={W / 2} y={H - 12} textAnchor="middle" fontSize="12">Iteration</text>
         <text x={P} y={H - 12} fontSize="12">
           0
         </text>
-        <text x={W - 60} y={H - 12} fontSize="12">
-          {cursor} steps
+        <text x={W - 36} y={H - 12} fontSize="12">
+          {cursor}
         </text>
       </svg>
       <p>
         {runs.map((run, i) => (
-          <span className="run-label" key={i} style={{ color: COLORS[i] }}>
-            {runLabel(run.config)} {i === 1 ? "– –" : i === 2 ? "···" : "——"}
+          <span className="run-label" key={i} style={{ color: COLORS[run.slot] }}>
+            {runLabel(run.config)}{run.current ? " · current" : " · saved"}
           </span>
         ))}
       </p>
