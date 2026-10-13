@@ -61,7 +61,7 @@ summary:focus-visible,
   outline-offset: 3px;
 }
 .lab {
-  max-width: 1480px;
+  max-width: 1320px;
   margin: auto;
   padding: 0 28px 36px;
 }
@@ -141,10 +141,13 @@ h2 {
   padding: 6px 10px;
 }
 .landscape-wrap {
+  height: 420px;
   width: 100%;
   overflow: hidden;
 }
 .landscape-wrap canvas {
+  width: 100%;
+  height: 100%;
   display: block;
 }
 .caption {
@@ -403,5 +406,95 @@ summary {
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;
+  }
+}
+
+.plot-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 12px;
+  margin: 8px 0;
+  color: #344954;
+}
+.plot-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.plot-key i {
+  display: inline-block;
+  width: 24px;
+  border-top-width: 3px;
+}
+.minimum-key {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #12633f;
+}
+.outside-view {
+  border-left: 3px solid #a34c20;
+  padding: 8px 12px;
+  background: #fff4e9;
+  font-size: 13px;
+}
+.run-label {
+  display: inline-block;
+}
+.learning-guide {
+  border-top: 1px solid #dce1e6;
+  padding: 32px 0;
+  margin-top: 24px;
+  scroll-margin-top: 20px;
+}
+.learning-guide h2 {
+  font-size: 22px;
+  margin: 0 0 12px;
+}
+.learning-guide > p {
+  max-width: 80ch;
+  color: #40515d;
+}
+.guide-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+  padding: 0 0 0 20px;
+  margin: 24px 0;
+}
+.guide-steps li {
+  padding-left: 4px;
+}
+.guide-steps h3 {
+  font-size: 15px;
+  margin: 0 0 6px;
+}
+.guide-steps p {
+  margin: 0;
+  color: #40515d;
+}
+.learning-guide a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: #254f9c;
+}
+#tool {
+  scroll-margin-top: 16px;
+}
+@media (max-width: 760px) {
+  .landscape-wrap {
+    height: 320px;
+  }
+  .guide-steps {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  header {
+    flex-wrap: wrap;
+  }
+  nav {
+    flex-wrap: wrap;
   }
 }

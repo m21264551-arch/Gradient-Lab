@@ -8,8 +8,10 @@ test("a visitor can step, retain, compare, and reset an experiment", async ({
   await expect(page.getByText("Paused · Step 1")).toBeVisible();
   await page.getByRole("button", { name: /Add to comparison/ }).click();
   await page.getByLabel("Optimizer").selectOption("adam");
-  await expect(page.getByRole("table")).toContainText("gd / 0.08");
-  await expect(page.getByRole("table")).toContainText("adam / 0.08");
+  await expect(page.getByRole("table")).toContainText(
+    "Gradient descent · α 0.08",
+  );
+  await expect(page.getByRole("table")).toContainText("Adam · α 0.08");
   await page.getByRole("button", { name: "Reset", exact: true }).click();
   await expect(page.getByText("Paused · Step 0")).toBeVisible();
 });
@@ -20,7 +22,10 @@ test("large learning rates produce an explicit failure rather than a bounded fak
   await page.getByRole("button", { name: "Large learning rate" }).click();
   await page.getByLabel("Inspect iteration").focus();
   await page.getByLabel("Inspect iteration").press("End");
-  await expect(page.getByRole("table")).toContainText("safety limit");
+  await expect(page.getByText(/Stopped: safety limit/)).toBeVisible();
+  await expect(
+    page.getByRole("status").filter({ hasText: "outside the plotted area" }),
+  ).toBeVisible();
 });
 test("URL round trip preserves the experiment and rejects unknown versions", async ({
   page,
@@ -58,7 +63,7 @@ test("rendering and playback controls cannot change downloaded mathematics", asy
     return JSON.parse(text);
   }
   const before = await downloadTrace();
-  await page.getByRole("button", { name: "3D View", exact: true }).click();
+  await page.getByRole("button", { name: "Contour", exact: true }).click();
   await page
     .getByRole("combobox", { name: "Speed", exact: true })
     .selectOption("4");
@@ -66,4 +71,22 @@ test("rendering and playback controls cannot change downloaded mathematics", asy
   await page.setViewportSize({ width: 390, height: 844 });
   const after = await downloadTrace();
   expect(after).toEqual(before);
+});
+
+test("guide navigation preserves a shared experiment and its current step", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByLabel("Optimizer").selectOption("adam");
+  await page.getByRole("button", { name: "Share experiment" }).click();
+  const query = new URL(page.url()).search;
+  await page.getByRole("button", { name: "Step", exact: true }).click();
+  await page.getByRole("link", { name: "How to use", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "How to use Gradient Lab" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Back to tool ↑" }).click();
+  expect(new URL(page.url()).search).toBe(query);
+  await expect(page.getByText("Paused · Step 1")).toBeVisible();
+  await expect(page.getByLabel("Optimizer")).toHaveValue("adam");
 });

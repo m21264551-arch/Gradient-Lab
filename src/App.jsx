@@ -11,8 +11,9 @@ import {
   seededRandom,
 } from "./lib/objectives";
 import LandscapeCanvas from "./components/LandscapeCanvas";
+import LearningGuide from "./components/LearningGuide";
+import { RUN_COLORS as COLORS, runLabel } from "./lib/landscape";
 import "./styles.css";
-const COLORS = ["#254f9c", "#b34828", "#6f4d8c"];
 function initial() {
   try {
     const text = new URLSearchParams(window.location.search).get("experiment");
@@ -38,7 +39,7 @@ export default function App() {
     [cursor, setCursor] = useState(0),
     [running, setRunning] = useState(false),
     [speed, setSpeed] = useState(1),
-    [view, setView] = useState("contour"),
+    [view, setView] = useState("3d"),
     [message, setMessage] = useState("");
   const objective = getObjective(config.objectiveId);
   const result = useMemo(
@@ -145,7 +146,8 @@ export default function App() {
         <a className="wordmark" href="/">
           Gradient Lab
         </a>
-        <nav>
+        <nav aria-label="Project links">
+          <a href="#how-to-use">How to use</a>
           <a href="https://github.com/m21264551-arch/Gradient-Lab">Code ↗</a>
           <a href="https://m21264551.com">Portfolio ↗</a>
         </nav>
@@ -172,7 +174,7 @@ export default function App() {
         <button onClick={() => preset("unstable")}>Large learning rate</button>
         <button onClick={() => preset("valley")}>Rosenbrock momentum</button>
       </div>
-      <div className="bench">
+      <div className="bench" id="tool" tabIndex={-1}>
         <section className="experiment" aria-label="Experiment visualization">
           <div className="plot-heading">
             <h2>{objective.name}</h2>
@@ -238,11 +240,11 @@ export default function App() {
             onStart={setStart}
           />
           <p className="caption">
+            {view === "contour" ? "Colour" : "Height and colour"}:{" "}
+            {objective.id === "bowl" ? "loss (linear scale)" : "log(1 + loss)"}.
             {view === "contour"
-              ? "Click to set the starting point."
-              : "Height is normalized log(1 + loss), not raw loss."}{" "}
-            Colour: normalized log(1 + loss). The plot boundary does not
-            constrain the run.
+              ? " Click inside the axes to set the starting point."
+              : " Use Contour or Starting point to choose a new start."}
           </p>
           <label className="scrubber">
             Inspect iteration{" "}
@@ -424,59 +426,60 @@ export default function App() {
         </div>
         <LossComparison runs={runs} cursor={cursor} />
       </section>
-      <div
-        className="table-wrap"
-        tabIndex="0"
-        role="region"
-        aria-label="Run comparison"
-      >
-        <table>
-          <caption>Run comparison at the selected iteration</caption>
-          <thead>
-            <tr>
-              <th>Run</th>
-              <th>Optimizer / α</th>
-              <th>Step</th>
-              <th>Loss</th>
-              <th>Gradient norm</th>
-              <th>Nearest minimum</th>
-              <th>State</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((r, i) => {
-              const p =
-                  r.result.trace[Math.min(cursor, r.result.trace.length - 1)],
-                s = summarizeRun(r.result.trace, cursor, objective);
-              return (
-                <tr key={i}>
-                  <th style={{ color: COLORS[i] }}>
-                    Run {i + 1}
-                    {i === runs.length - 1 ? " · current" : ""}
-                  </th>
-                  <td>
-                    {r.config.optimizer} / {fmt(r.config.learningRate)}
-                  </td>
-                  <td>{p?.iteration ?? "—"}</td>
-                  <td>{fmt(p?.loss)}</td>
-                  <td>{fmt(p?.gradNorm)}</td>
-                  <td>{fmt(s.minimumDistance)}</td>
-                  <td>
-                    {cursor >= r.result.trace.length - 1
-                      ? r.result.termination.replaceAll("_", " ")
-                      : s.status}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {retained.length > 0 && (
+        <div
+          className="table-wrap"
+          tabIndex="0"
+          role="region"
+          aria-label="Run comparison"
+        >
+          <table>
+            <caption>Run comparison at the selected iteration</caption>
+            <thead>
+              <tr>
+                <th>Run</th>
+                <th>Optimizer / α</th>
+                <th>Step</th>
+                <th>Loss</th>
+                <th>Gradient norm</th>
+                <th>Nearest minimum</th>
+                <th>State</th>
+              </tr>
+            </thead>
+            <tbody>
+              {runs.map((r, i) => {
+                const p =
+                    r.result.trace[Math.min(cursor, r.result.trace.length - 1)],
+                  s = summarizeRun(r.result.trace, cursor, objective);
+                return (
+                  <tr key={i}>
+                    <th style={{ color: COLORS[i] }}>
+                      Run {i + 1}
+                      {i === runs.length - 1 ? " · current" : ""}
+                    </th>
+                    <td>{runLabel(r.config)}</td>
+                    <td>{p?.iteration ?? "—"}</td>
+                    <td>{fmt(p?.loss)}</td>
+                    <td>{fmt(p?.gradNorm)}</td>
+                    <td>{fmt(s.minimumDistance)}</td>
+                    <td>
+                      {cursor >= r.result.trace.length - 1
+                        ? r.result.termination.replaceAll("_", " ")
+                        : s.status}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
       <div className="export">
         <button onClick={share}>Share experiment</button>
         <button onClick={download}>Download traces</button>
         <span role="status">{message}</span>
       </div>
+      <LearningGuide />
       <details className="method">
         <summary>Data and method</summary>
         <div>
@@ -492,8 +495,8 @@ export default function App() {
             claim that the algorithms are equally tuned.
           </p>
           <p>
-            Known minima are marked with a cross. A stationary point can also be
-            a saddle. Runs stop at 220 updates by default, a gradient norm below
+            Known minima are marked in green. A stationary point can also be a
+            saddle. Runs stop at 220 updates by default, a gradient norm below
             10⁻⁸ without noise, a non-finite value, or safety limits of
             |coordinate| &gt; 10⁶ / |loss| &gt; 10¹². A safety stop is not
             convergence.
@@ -557,9 +560,9 @@ function LossComparison({ runs, cursor }) {
         </text>
       </svg>
       <p>
-        {runs.map((_, i) => (
+        {runs.map((run, i) => (
           <span className="run-label" key={i} style={{ color: COLORS[i] }}>
-            Run {i + 1} {i === 1 ? "– –" : i === 2 ? "···" : "——"}
+            {runLabel(run.config)} {i === 1 ? "– –" : i === 2 ? "···" : "——"}
           </span>
         ))}
       </p>

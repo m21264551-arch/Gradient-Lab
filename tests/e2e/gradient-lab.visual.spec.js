@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 for (const [name, width, height] of [
-  ["desktop", 1440, 1000],
+  ["desktop", 1280, 720],
   ["mobile", 390, 844],
 ])
   test(`${name} research bench`, async ({ page }) => {
