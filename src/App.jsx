@@ -143,26 +143,15 @@ export default function App() {
     <main className="lab">
       <header>
         <a className="wordmark" href="/">
-          Gradient Lab <span>01 / Optimization</span>
+          Gradient Lab
         </a>
         <nav>
-          <a href="https://github.com/m21264551-arch/Gradient-Lab">
-            Code & method ↗
-          </a>
+          <a href="https://github.com/m21264551-arch/Gradient-Lab">Code ↗</a>
           <a href="https://m21264551.com">Portfolio ↗</a>
         </nav>
       </header>
       <section className="intro">
-        <p className="eyebrow">A controlled experiment</p>
-        <h1>
-          Same starting point.
-          <br />
-          Different path downhill.
-        </h1>
-        <p>
-          Compare update rules on a two-parameter function. Change one setting,
-          retain a run, and see what changes in the path and loss.
-        </p>
+        <h1>Compare optimizers from the same starting point.</h1>
       </section>
       {error && (
         <p role="alert" className="error">
@@ -178,16 +167,10 @@ export default function App() {
         </p>
       )}
       <div className="presets" aria-label="Experiment presets">
-        <span>Start with a question</span>
-        <button onClick={() => preset("stable")}>
-          How does descent converge?
-        </button>
-        <button onClick={() => preset("unstable")}>
-          What if the step is too large?
-        </button>
-        <button onClick={() => preset("valley")}>
-          What does momentum change?
-        </button>
+        <span>Presets</span>
+        <button onClick={() => preset("stable")}>Stable descent</button>
+        <button onClick={() => preset("unstable")}>Large learning rate</button>
+        <button onClick={() => preset("valley")}>Rosenbrock momentum</button>
       </div>
       <div className="bench">
         <section className="experiment" aria-label="Experiment visualization">
@@ -205,20 +188,6 @@ export default function App() {
               ))}
             </div>
           </div>
-          <LandscapeCanvas
-            objective={objective}
-            runs={runs}
-            currentIndex={cursor}
-            viewMode={view}
-            onStart={setStart}
-          />
-          <p className="caption">
-            {view === "contour"
-              ? "Click the contour to set the shared starting point."
-              : "Height is normalized log(1 + loss), not raw loss."}{" "}
-            Colour uses normalized log(1 + loss). Paths outside the displayed
-            domain are clipped visually; the simulation continues.
-          </p>
           <div className="playback">
             <button
               className="primary"
@@ -261,6 +230,20 @@ export default function App() {
               {running ? "Running" : "Paused"} · Step {cursor}
             </span>
           </div>
+          <LandscapeCanvas
+            objective={objective}
+            runs={runs}
+            currentIndex={cursor}
+            viewMode={view}
+            onStart={setStart}
+          />
+          <p className="caption">
+            {view === "contour"
+              ? "Click to set the starting point."
+              : "Height is normalized log(1 + loss), not raw loss."}{" "}
+            Colour: normalized log(1 + loss). The plot boundary does not
+            constrain the run.
+          </p>
           <label className="scrubber">
             Inspect iteration{" "}
             <input
@@ -276,7 +259,7 @@ export default function App() {
           </label>
         </section>
         <aside className="controls" aria-label="Experiment controls">
-          <h2>Change one thing</h2>
+          <h2>Settings</h2>
           <label>
             Function
             <select
@@ -298,7 +281,7 @@ export default function App() {
               ))}
             </select>
           </label>
-          <p>{objective.description}</p>
+
           <label>
             Optimizer
             <select
@@ -326,62 +309,69 @@ export default function App() {
               }
             />
           </label>
-          <label>
-            {config.optimizer === "adam" ? "First moment β₁" : "Momentum β"}{" "}
-            <span className="control-value">{fmt(config.momentum)}</span>
-            <input
-              type="range"
-              min="0"
-              max=".98"
-              step=".01"
-              value={config.momentum}
-              disabled={config.optimizer === "gd"}
-              onChange={(e) => update({ momentum: Number(e.target.value) })}
-            />
-          </label>
-          <label>
-            Gradient noise σ{" "}
-            <span className="control-value">{fmt(config.noise)}</span>
-            <input
-              type="range"
-              min="0"
-              max=".3"
-              step=".005"
-              value={config.noise}
-              onChange={(e) => update({ noise: Number(e.target.value) })}
-            />
-          </label>
-          <fieldset>
-            <legend>Shared start</legend>
-            {["x", "y"].map((axis) => (
-              <label key={axis}>
-                {axis}
-                <input
-                  type="number"
-                  min="-10"
-                  max="10"
-                  step=".01"
-                  value={config.startPoint[axis]}
-                  onChange={(e) => {
-                    if (
-                      e.target.value !== "" &&
-                      Number.isFinite(e.target.valueAsNumber) &&
-                      Math.abs(e.target.valueAsNumber) <= 10
-                    )
-                      setStart({
-                        ...config.startPoint,
-                        [axis]: e.target.valueAsNumber,
-                      });
-                  }}
-                />
-              </label>
-            ))}
-          </fieldset>
-          <button onClick={newStart}>New start</button>
-          <p>
-            Seed {config.seed}. Changing the function or starting point clears
-            retained runs.
-          </p>
+          <details className="advanced">
+            <summary>Advanced settings</summary>
+            <label>
+              {config.optimizer === "adam" ? "First moment β₁" : "Momentum β"}{" "}
+              <span className="control-value">{fmt(config.momentum)}</span>
+              <input
+                type="range"
+                min="0"
+                max=".98"
+                step=".01"
+                value={config.momentum}
+                disabled={config.optimizer === "gd"}
+                onChange={(e) => update({ momentum: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              Gradient noise σ{" "}
+              <span className="control-value">{fmt(config.noise)}</span>
+              <input
+                type="range"
+                min="0"
+                max=".3"
+                step=".005"
+                value={config.noise}
+                onChange={(e) => update({ noise: Number(e.target.value) })}
+              />
+            </label>
+            <p>Seed {config.seed}. Noise is uniform U(−σ, σ).</p>
+          </details>
+          <details>
+            <summary>Starting point</summary>
+            <fieldset>
+              <legend>Shared start</legend>
+              {["x", "y"].map((axis) => (
+                <label key={axis}>
+                  {axis}
+                  <input
+                    type="number"
+                    min="-10"
+                    max="10"
+                    step=".01"
+                    value={config.startPoint[axis]}
+                    onChange={(e) => {
+                      if (
+                        e.target.value !== "" &&
+                        Number.isFinite(e.target.valueAsNumber) &&
+                        Math.abs(e.target.valueAsNumber) <= 10
+                      )
+                        setStart({
+                          ...config.startPoint,
+                          [axis]: e.target.valueAsNumber,
+                        });
+                    }}
+                  />
+                </label>
+              ))}
+            </fieldset>
+            <button onClick={newStart}>New start</button>
+            <p>
+              Seed {config.seed}. Changing the function or starting point clears
+              comparisons.
+            </p>
+          </details>
           <button
             disabled={retained.length >= 2}
             onClick={() => {
@@ -390,7 +380,7 @@ export default function App() {
               setRunning(false);
             }}
           >
-            Retain run for comparison ({retained.length}/2)
+            Add to comparison ({retained.length}/2)
           </button>
           <button disabled={!retained.length} onClick={() => setRetained([])}>
             Clear comparisons
@@ -399,7 +389,7 @@ export default function App() {
       </div>
       <section className="results">
         <div>
-          <p className="eyebrow">Evidence from this run</p>
+          <p className="result-label">Current run</p>
           <h2>{summary.status}</h2>
           <p>
             {current
@@ -407,25 +397,30 @@ export default function App() {
               : "The initial state could not be evaluated."}{" "}
             {cursor >= result.trace.length - 1
               ? `Stopped: ${result.termination.replaceAll("_", " ")}.`
-              : "The run is paused at an intermediate step."}
+              : running
+                ? "Running."
+                : "Paused."}
           </p>
-          <p className="equation">
-            {config.optimizer === "gd"
-              ? "θₜ₊₁ = θₜ − αgₜ"
-              : config.optimizer === "momentum"
-                ? "vₜ₊₁ = βvₜ − αgₜ; θₜ₊₁ = θₜ + vₜ₊₁"
-                : "θₜ₊₁ = θₜ − αm̂ₜ / (√v̂ₜ + ε)"}
-          </p>
-          {current?.dx !== undefined && (
-            <p>
-              Next x update: {fmt(current.x)} + ({fmt(current.dx)}) ={" "}
-              {fmt(current.x + current.dx)}. Gradient x: {fmt(current.gradX)}
-              {config.noise > 0
-                ? `; after noise: ${fmt(current.noisyGradX)}`
-                : ""}
-              .
+          <details>
+            <summary>Step details</summary>
+            <p className="equation">
+              {config.optimizer === "gd"
+                ? "θₜ₊₁ = θₜ − αgₜ"
+                : config.optimizer === "momentum"
+                  ? "vₜ₊₁ = βvₜ − αgₜ; θₜ₊₁ = θₜ + vₜ₊₁"
+                  : "θₜ₊₁ = θₜ − αm̂ₜ / (√v̂ₜ + ε)"}
             </p>
-          )}
+            {current?.dx !== undefined && (
+              <p>
+                Next x update: {fmt(current.x)} + ({fmt(current.dx)}) ={" "}
+                {fmt(current.x + current.dx)}. Gradient x: {fmt(current.gradX)}
+                {config.noise > 0
+                  ? `; after noise: ${fmt(current.noisyGradX)}`
+                  : ""}
+                .
+              </p>
+            )}
+          </details>
         </div>
         <LossComparison runs={runs} cursor={cursor} />
       </section>
@@ -478,12 +473,12 @@ export default function App() {
         </table>
       </div>
       <div className="export">
-        <button onClick={share}>Share current experiment</button>
-        <button onClick={download}>Download all traces</button>
+        <button onClick={share}>Share experiment</button>
+        <button onClick={download}>Download traces</button>
         <span role="status">{message}</span>
       </div>
-      <section className="method">
-        <h2>What this experiment can tell you</h2>
+      <details className="method">
+        <summary>Data and method</summary>
         <div>
           <p>
             These are exact two-dimensional objective functions, not a trained
@@ -504,7 +499,7 @@ export default function App() {
             convergence.
           </p>
         </div>
-      </section>
+      </details>
     </main>
   );
 }

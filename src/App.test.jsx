@@ -17,23 +17,25 @@ it("starts paused, steps, and resets the same experiment", async () => {
 it("retains a comparison with its original parameters", async () => {
   const user = userEvent.setup();
   render(<App />);
-  await user.click(screen.getByRole("button", { name: /Retain run/ }));
+  await user.click(screen.getByRole("button", { name: /Add to comparison/ }));
   await user.selectOptions(screen.getByLabelText("Optimizer"), "adam");
   expect(screen.getByText("gd / 0.08")).toBeInTheDocument();
   expect(screen.getByText("adam / 0.08")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: /Retain run/ }));
-  expect(screen.getByRole("button", { name: /Retain run/ })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: /Add to comparison/ }));
+  expect(
+    screen.getByRole("button", { name: /Add to comparison/ }),
+  ).toBeDisabled();
 });
 it("clears comparisons when the common starting point changes", async () => {
   const user = userEvent.setup();
   render(<App />);
-  await user.click(screen.getByRole("button", { name: /Retain run/ }));
+  await user.click(screen.getByRole("button", { name: /Add to comparison/ }));
   fireEvent.change(screen.getByLabelText("x", { exact: true }), {
     target: { value: "1" },
   });
-  expect(screen.getByRole("button", { name: /Retain run/ })).toHaveTextContent(
-    "(0/2)",
-  );
+  expect(
+    screen.getByRole("button", { name: /Add to comparison/ }),
+  ).toHaveTextContent("(0/2)");
 });
 it("has nonvisual metrics and an explicit transformed display scale", () => {
   render(<App />);
@@ -43,5 +45,5 @@ it("has nonvisual metrics and an explicit transformed display scale", () => {
   expect(screen.getByRole("table")).toHaveAccessibleName(
     "Run comparison at the selected iteration",
   );
-  expect(screen.getByText(/Colour uses normalized/)).toBeInTheDocument();
+  expect(screen.getByText(/Colour: normalized/)).toBeInTheDocument();
 });
