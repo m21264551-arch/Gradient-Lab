@@ -143,7 +143,7 @@ test('phone playback has a visible loss trend and nearby comparison action',asyn
  await page.setViewportSize({width:390,height:844});await page.goto('/');
  await expect(page.getByRole('button',{name:'Stable descent',exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Large learning rate',exact:true})).toBeVisible();
- await expect(page.locator('.mobile-feedback')).toContainText('Step shows one update');
+ await expect(page.locator('.mobile-feedback')).toContainText('Run the optimizer or take one Step.');
  await page.getByRole('button',{name:'Step',exact:true}).click();
  await expect(page.locator('.loss-trend svg')).toHaveAttribute('aria-label',/iteration 1/);
  const bowl=await page.locator('canvas').boundingBox();
@@ -160,7 +160,7 @@ test('comparison explains the lowest displayed loss with iteration and settings'
  await expect(page.getByLabel('Comparison finding')).toContainText('Momentum · α 0.08');
  await expect(page.getByLabel('Comparison finding')).toContainText('17');
  await expect(page.getByLabel('Comparison finding')).toContainText('0.13681');
- await expect(page.locator('.comparison-scope')).toContainText('this iteration only');
+ await expect(page.locator('.comparison-scope')).toContainText('the settings and iteration shown');
  await page.getByRole('button',{name:'Reset',exact:true}).click();
  await expect(page.getByLabel('Comparison finding')).toContainText('Starting loss');
 });
