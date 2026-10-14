@@ -183,7 +183,7 @@ export default function App() {
           <a href="https://m21264551.com">Portfolio ↗</a>
         </nav>
       </header>
-      <section className="intro">
+      <section className="sr-only">
         <h1>Compare optimizers from the same starting point.</h1>
       </section>
       {error && (
@@ -199,15 +199,9 @@ export default function App() {
           </button>
         </p>
       )}
-      <div className="presets" aria-label="Experiment presets">
-        <span>Presets</span>
-        <button onClick={() => preset("stable")}>Stable descent</button>
-        <button onClick={() => preset("unstable")}>Large learning rate</button>
-        <button onClick={() => preset("valley")}>Rosenbrock momentum</button>
-      </div>
       <div className="bench" id="tool" tabIndex={-1}>
         <section className="controls essential" aria-label="Basic settings">
-          <h2 className="sr-only">Settings</h2>
+          <h2>Settings</h2>
           <label>
             Function
             <select
@@ -258,6 +252,12 @@ export default function App() {
               }
             />
           </div>
+      <details className="presets" aria-label="Experiment presets">
+        <summary>Presets</summary>
+        <button onClick={() => preset("stable")}>Stable descent</button>
+        <button onClick={() => preset("unstable")}>Large learning rate</button>
+        <button onClick={() => preset("valley")}>Rosenbrock momentum</button>
+      </details>
         </section>
         <section className="experiment" aria-label="Experiment visualization">
           <div className="plot-heading">
@@ -317,6 +317,27 @@ export default function App() {
             </span>
             <strong className="live-loss">Loss {fmt(current?.loss)}</strong>
           </div>
+              <details className="step-details">
+                <summary>Step details</summary>
+                <p className="equation">
+                  {config.optimizer === "gd"
+                    ? "θₜ₊₁ = θₜ − αgₜ"
+                    : config.optimizer === "momentum"
+                      ? "vₜ₊₁ = βvₜ − αgₜ; θₜ₊₁ = θₜ + vₜ₊₁"
+                      : "θₜ₊₁ = θₜ − αm̂ₜ / (√v̂ₜ + ε)"}
+                </p>
+                {current?.dx !== undefined && (
+                  <p>
+                    Next x update: {fmt(current.x)} + ({fmt(current.dx)}) ={" "}
+                    {fmt(current.x + current.dx)}. Gradient x:{" "}
+                    {fmt(current.gradX)}
+                    {config.noise > 0
+                      ? `; after noise: ${fmt(current.noisyGradX)}`
+                      : ""}
+                    .
+                  </p>
+                )}
+              </details>
           <LandscapeCanvas
             objective={objective}
             runs={runs}
@@ -344,7 +365,9 @@ export default function App() {
               }}
             />
           </label>
-          <section className="results">
+
+        </section>
+          <section className="results" aria-label="Experiment results">
             <LossComparison runs={runs} cursor={cursor} />
             <div>
               <p className="result-label">Current run</p>
@@ -359,30 +382,25 @@ export default function App() {
                     ? "Running."
                     : "Paused."}
               </p>
-              <details>
-                <summary>Step details</summary>
-                <p className="equation">
-                  {config.optimizer === "gd"
-                    ? "θₜ₊₁ = θₜ − αgₜ"
-                    : config.optimizer === "momentum"
-                      ? "vₜ₊₁ = βvₜ − αgₜ; θₜ₊₁ = θₜ + vₜ₊₁"
-                      : "θₜ₊₁ = θₜ − αm̂ₜ / (√v̂ₜ + ε)"}
-                </p>
-                {current?.dx !== undefined && (
-                  <p>
-                    Next x update: {fmt(current.x)} + ({fmt(current.dx)}) ={" "}
-                    {fmt(current.x + current.dx)}. Gradient x:{" "}
-                    {fmt(current.gradX)}
-                    {config.noise > 0
-                      ? `; after noise: ${fmt(current.noisyGradX)}`
-                      : ""}
-                    .
-                  </p>
-                )}
-              </details>
+
             </div>
+          <section className="saved-runs" aria-label="Saved comparisons">
+            <h2>Compare</h2>
+            <button disabled={!!savedCurrent || retained.length >= 2} onClick={retain}>
+              {savedCurrent ? "Added to comparison" : "Add to comparison"}
+            </button>
+            <p>{retained.length} of 2 saved · current run also shown</p>
+            {retained.map((run) => <div className="saved-run" key={run.key}>
+              <span style={{ color: COLORS[run.slot] }}>{runLabel(run.config)}</span>
+              <button aria-label={`Remove ${runLabel(run.config)}`} onClick={() => {
+                setRetained((items) => items.filter((r) => r.key !== run.key));
+                setMessage(`Removed ${runLabel(run.config)}.`);
+              }}>Remove</button>
+            </div>)}
           </section>
-        </section>
+          <div className="comparison-notice"><p role="status">{message}</p>
+            {undo && <button onClick={restoreComparison}>Undo</button>}</div>
+          </section>
         <aside className="controls advanced-controls" aria-label="Advanced experiment controls">
           <details className="advanced">
             <summary>Advanced settings</summary>
@@ -447,22 +465,6 @@ export default function App() {
               comparisons.
             </p>
           </details>
-          <section className="saved-runs" aria-label="Saved comparisons">
-            <h2>Compare</h2>
-            <button disabled={!!savedCurrent || retained.length >= 2} onClick={retain}>
-              {savedCurrent ? "Added to comparison" : "Add to comparison"}
-            </button>
-            <p>{retained.length} of 2 saved · current run also shown</p>
-            {retained.map((run) => <div className="saved-run" key={run.key}>
-              <span style={{ color: COLORS[run.slot] }}>{runLabel(run.config)}</span>
-              <button aria-label={`Remove ${runLabel(run.config)}`} onClick={() => {
-                setRetained((items) => items.filter((r) => r.key !== run.key));
-                setMessage(`Removed ${runLabel(run.config)}.`);
-              }}>Remove</button>
-            </div>)}
-          </section>
-          <div className="comparison-notice"><p role="status">{message}</p>
-            {undo && <button onClick={restoreComparison}>Undo</button>}</div>
         </aside>
       </div>
 
@@ -597,8 +599,8 @@ function LossComparison({ runs, cursor }) {
           </g>
         ))}
         {visible.map((trace, i) => (
+          <g key={runs[i].key}>
           <polyline
-            key={i}
             fill="none"
             stroke={COLORS[runs[i].slot]}
             strokeWidth="2"
@@ -610,13 +612,19 @@ function LossComparison({ runs, cursor }) {
               )
               .join(" ")}
           />
+          <circle
+            cx={P + (trace.at(-1).iteration / steps) * (W - P - 12)}
+            cy={H - P - (Math.log1p(Math.max(0, trace.at(-1).loss)) / max) * (H - P - 12)}
+            r="4" fill={COLORS[runs[i].slot]} stroke="white" strokeWidth="1.5"
+          />
+          </g>
         ))}
         <text x={W / 2} y={H - 12} textAnchor="middle" fontSize="12">Iteration</text>
         <text x={P} y={H - 12} fontSize="12">
           0
         </text>
         <text x={W - 36} y={H - 12} fontSize="12">
-          {cursor}
+          {steps}
         </text>
       </svg>
       <p>
