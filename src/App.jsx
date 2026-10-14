@@ -63,6 +63,15 @@ export default function App() {
   const last = Math.max(...runs.map((r) => r.result.trace.length - 1));
   const current = result.trace[Math.min(cursor, result.trace.length - 1)],
     summary = summarizeRun(result.trace, cursor, objective);
+  const ranked = runs.map(run => ({ ...run, point: run.result.trace[Math.min(cursor, run.result.trace.length - 1)] }))
+    .filter(run => Number.isFinite(run.point?.loss)).sort((a,b) => a.point.loss - b.point.loss);
+  const comparisonReading = cursor === 0
+    ? `Starting loss ${fmt(current?.loss)}. Run or Step to see how it changes.`
+    : runs.length < 2
+      ? `${runLabel(config)}: loss ${fmt(current?.loss)} after ${current?.iteration} updates. Add this configuration to compare another optimizer.`
+      : ranked.length > 1 && Math.abs(ranked[0].point.loss-ranked.at(-1).point.loss) < 1e-12
+        ? `The displayed runs have equal loss at iteration ${cursor}.`
+        : `${runLabel(ranked[0].config)} has the lowest displayed loss at iteration ${cursor}: ${fmt(ranked[0].point.loss)}. ${ranked.slice(1).map(run => `${runLabel(run.config)}: ${fmt(run.point.loss)}`).join("; ")}.`;
   function update(changes) {
     const next = { ...config, ...changes };
     const compatible = next.objectiveId === config.objectiveId &&
@@ -73,7 +82,7 @@ export default function App() {
       setCurrentSlot(0);
       setMessage("The function or start changed. Saved comparisons were cleared.");
     } else {
-      if (!undo) setMessage("");
+      if (!undo) setMessage(retained.length ? "Settings changed. All comparison paths restart together at iteration 0." : "");
       const existing = retained.find((r) => r.key === configKey(next));
       setCurrentSlot(existing?.slot ?? [0, 1, 2].find((slot) => !retained.some((r) => r.slot === slot)) ?? 0);
     }
@@ -142,7 +151,7 @@ export default function App() {
     try {
       await navigator.clipboard.writeText(url.href);
       setMessage(
-        "Experiment link copied. It contains the current run and seed.",
+        "Link copied: current settings and seed. It opens paused at iteration 0, without saved comparisons.",
       );
     } catch {
       setMessage(
@@ -309,8 +318,8 @@ export default function App() {
             <strong className="live-loss">Loss {fmt(current?.loss)}</strong>
           </div>
           <div className="mobile-feedback">
-            <LossTrend runs={runs} cursor={cursor} />
-            <span>Lower on the surface means lower loss.</span>
+            {cursor > 0 && <LossTrend runs={runs} cursor={cursor} />}
+            <span>{cursor === 0 ? "Run to move downhill; Step shows one update." : `Loss ${fmt(current?.loss)} after ${current?.iteration} updates.`}</span>
           </div>
           <LandscapeCanvas
             objective={objective}
@@ -382,6 +391,8 @@ export default function App() {
 
         </section>
           <section className="results" aria-label="Experiment results">
+            <p className="comparison-reading" aria-label="Comparison finding">{comparisonReading}</p>
+            {runs.length > 1 && <p className="comparison-scope">{objective.name} · start ({config.startPoint.x}, {config.startPoint.y}). These settings and this iteration only; equal rates do not mean equal tuning.</p>}
             <LossComparison runs={runs} cursor={cursor} />
             <div>
               <p className="result-label">Current run</p>
@@ -402,7 +413,7 @@ export default function App() {
             </div>
           <section className="saved-runs" aria-label="Saved comparisons">
             <h2>Saved comparisons</h2>
-            <p>Saved settings replay alongside the current run at the same iteration.</p>
+            <p>Saving keeps the settings, not a frozen endpoint. All paths replay together; changing a setting restarts their shared clock.</p>
             <p>{retained.length} of 2 saved · current run also shown</p>
             {retained.map((run) => <div className="saved-run" key={run.key}>
               <span style={{ color: COLORS[run.slot] }}>{runLabel(run.config)}</span>
@@ -533,6 +544,7 @@ export default function App() {
       <div className="export">
         <button onClick={share}>Copy current run link</button>
         <button onClick={download}>Download traces</button>
+        <p>Link: current settings and seed, starting at step 0. Download: all displayed runs and their full traces.</p>
       </div>
       <LearningGuide />
       <details className="method">
@@ -599,6 +611,7 @@ function LossComparison({ runs, cursor }) {
         role="img"
         aria-label="Loss comparison chart"
       >
+        {cursor === 0 && <text x={W/2} y={70} textAnchor="middle" fontSize="12">Run to draw the loss curve</text>}
         <path d={`M${P} 12V${H - P}H${W - 12}`} fill="none" stroke="#89929d" />
         {[0, 0.5, 1].map((t) => (
           <g key={t}>

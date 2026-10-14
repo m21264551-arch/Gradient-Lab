@@ -143,7 +143,7 @@ test('phone playback has a visible loss trend and nearby comparison action',asyn
  await page.setViewportSize({width:390,height:844});await page.goto('/');
  await expect(page.getByRole('button',{name:'Stable descent',exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Large learning rate',exact:true})).toBeVisible();
- await expect(page.locator('.loss-trend')).toBeInViewport();
+ await expect(page.locator('.mobile-feedback')).toContainText('Step shows one update');
  await page.getByRole('button',{name:'Step',exact:true}).click();
  await expect(page.locator('.loss-trend svg')).toHaveAttribute('aria-label',/iteration 1/);
  const bowl=await page.locator('canvas').boundingBox();
@@ -151,4 +151,21 @@ test('phone playback has a visible loss trend and nearby comparison action',asyn
  expect(action.y-bowl.y-bowl.height).toBeLessThan(40);
  await page.getByRole('button',{name:'Add to comparison',exact:true}).click();
  await expect(page.getByText('Paused · Step 1')).toBeVisible();
+});
+
+test('comparison explains the lowest displayed loss with iteration and settings',async({page})=>{
+ await page.goto('/');await page.getByRole('button',{name:'Add to comparison',exact:true}).click();
+ await page.getByLabel('Optimizer').selectOption('momentum');await page.getByRole('button',{name:'Add to comparison',exact:true}).click();
+ await page.getByLabel('Optimizer').selectOption('adam');await page.getByLabel('Inspect iteration').fill('17');
+ await expect(page.getByLabel('Comparison finding')).toContainText('Momentum · α 0.08');
+ await expect(page.getByLabel('Comparison finding')).toContainText('17');
+ await expect(page.getByLabel('Comparison finding')).toContainText('0.13681');
+ await expect(page.locator('.comparison-scope')).toContainText('this iteration only');
+ await page.getByRole('button',{name:'Reset',exact:true}).click();
+ await expect(page.getByLabel('Comparison finding')).toContainText('Starting loss');
+});
+test('primary action retains legible contrast while hovered',async({page})=>{
+ await page.goto('/');const run=page.getByRole('button',{name:'Run animation'});await run.hover();
+ const colors=await run.evaluate(el=>({background:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color}));
+ expect(colors).toEqual({background:'rgb(38, 61, 128)',color:'rgb(255, 255, 255)'});
 });
