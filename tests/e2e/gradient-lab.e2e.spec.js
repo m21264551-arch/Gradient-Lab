@@ -19,7 +19,6 @@ test("large learning rates produce an explicit failure rather than a bounded fak
   page,
 }) => {
   await page.goto("/");
-  await page.getByText("Presets", {exact:true}).click();
   await page.getByRole("button", { name: "Large learning rate" }).click();
   await page.getByLabel("Inspect iteration").focus();
   await page.getByLabel("Inspect iteration").press("End");
@@ -63,6 +62,7 @@ test("rendering and playback controls cannot change downloaded mathematics", asy
   }
   const before = await downloadTrace();
   await page.getByRole("button", { name: "Contour", exact: true }).click();
+  await page.getByText("Step details", {exact:true}).click();
   await page
     .getByRole("combobox", { name: "Speed", exact: true })
     .selectOption("4");
@@ -137,3 +137,18 @@ for (const [width, height] of [[1280,720],[800,900],[390,844]]) {
     await page.screenshot({path:`../../outputs/distinct-tested-gradient-guide-${width}.png`});
   });
 }
+
+
+test('phone playback has a visible loss trend and nearby comparison action',async({page})=>{
+ await page.setViewportSize({width:390,height:844});await page.goto('/');
+ await expect(page.getByRole('button',{name:'Stable descent',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Large learning rate',exact:true})).toBeVisible();
+ await expect(page.locator('.loss-trend')).toBeInViewport();
+ await page.getByRole('button',{name:'Step',exact:true}).click();
+ await expect(page.locator('.loss-trend svg')).toHaveAttribute('aria-label',/iteration 1/);
+ const bowl=await page.locator('canvas').boundingBox();
+ const action=await page.getByRole('button',{name:'Add to comparison',exact:true}).boundingBox();
+ expect(action.y-bowl.y-bowl.height).toBeLessThan(40);
+ await page.getByRole('button',{name:'Add to comparison',exact:true}).click();
+ await expect(page.getByText('Paused · Step 1')).toBeVisible();
+});
