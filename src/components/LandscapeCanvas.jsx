@@ -269,8 +269,7 @@ export default function LandscapeCanvas({
           ? "Three-dimensional surface"
           : "Equal-scale contour map"}{" "}
         for {objective.name}. Step {currentIndex}. Height and colour show{" "}
-        {surface.scaleLabel}. The white-ring point is the current position;
-        green marks a known minimum. Starting coordinates can be entered in
+        {surface.scaleLabel}. The white-ring point is the current position. Green marks a known minimum. Starting coordinates can be entered in
         Starting point.
       </p>
       <div className="plot-key" aria-label="Path legend">
@@ -291,7 +290,7 @@ export default function LandscapeCanvas({
       </div>
       {outside.length > 0 && (
         <p className="outside-view" role="status">
-          {outside.map((run,i) => <span key={run.key} style={{color:RUN_COLORS[run.slot ?? i]}}>{i ? "; " : ""}{runLabel(run.config)}</span>)} outside the plotted area; the matching edge arrow shows direction in the x–y plane. The simulation continues without constraining its coordinates. Inspect the loss or download the trace.
+          {outside.map((run,i) => <span key={run.key} style={{color:RUN_COLORS[run.slot ?? i]}}>{i ? ", " : ""}{runLabel(run.config)}</span>)} outside the plotted area. The matching edge arrow shows direction in the x–y plane. The simulation continues without constraining its coordinates. Inspect the loss or download the trace.
         </p>
       )}
     </>

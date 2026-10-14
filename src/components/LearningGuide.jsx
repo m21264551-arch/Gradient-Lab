@@ -26,13 +26,13 @@ export default function LearningGuide() {
         <figcaption>Default bowl · gradient descent · α 0.08 · first 30 updates</figcaption>
       </figure>
       <div className="guide-copy">
-        <p>Height is loss. The point is a pair of parameters, x and y; its path records optimizer updates. Cooler colours show lower loss.</p>
+        <p>Height is loss. The point shows two parameters, x and y. Its path records optimizer updates. Cooler colours show lower loss.</p>
         <ol className="guide-steps">
-          <li><strong>Run the bowl.</strong> Watch the point descend. Step advances one update; Reset returns to the same start.</li>
-          <li><strong>Try Large learning rate.</strong> The point can overshoot and leave the picture. Its coordinates keep moving; a safety stop does not mean it found a minimum.</li>
+          <li><strong>Run the bowl.</strong> Watch the point descend. Step advances one update. Reset returns to the same start.</li>
+          <li><strong>Try Large learning rate.</strong> The point can overshoot and leave the picture. Its coordinates keep moving. A safety stop does not mean it found a minimum.</li>
           <li><strong>Compare momentum.</strong> Return to Stable descent, add the run to comparison, then select Momentum and Run. Compare its path and loss with the saved run.</li>
         </ol>
-        <p>Neural-network training uses these update rules after computing gradients. These two-parameter examples expose their behaviour, but cannot represent an entire trained network. Equal learning rates also do not mean equally tuned optimizers.</p>
+        <p>Neural-network training uses these update rules after computing gradients. These examples show how the updates work with two parameters. A trained network has many more. Equal learning rates also do not mean equally tuned optimizers.</p>
         <a href="#tool">Back to tool ↑</a>
       </div>
     </div>

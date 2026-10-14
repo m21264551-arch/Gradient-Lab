@@ -71,7 +71,7 @@ export default function App() {
       ? `${runLabel(config)}: loss ${fmt(current?.loss)} after ${current?.iteration} updates. Add this configuration to compare another optimizer.`
       : ranked.length > 1 && Math.abs(ranked[0].point.loss-ranked.at(-1).point.loss) < 1e-12
         ? `The displayed runs have equal loss at iteration ${cursor}.`
-        : `${runLabel(ranked[0].config)} has the lowest displayed loss at iteration ${cursor}: ${fmt(ranked[0].point.loss)}. ${ranked.slice(1).map(run => `${runLabel(run.config)}: ${fmt(run.point.loss)}`).join("; ")}.`;
+        : `${runLabel(ranked[0].config)} has the lowest displayed loss at iteration ${cursor}: ${fmt(ranked[0].point.loss)}. ${ranked.slice(1).map(run => `${runLabel(run.config)}: ${fmt(run.point.loss)}`).join(". ")}.`;
   function update(changes) {
     const next = { ...config, ...changes };
     const compatible = next.objectiveId === config.objectiveId &&
@@ -319,7 +319,7 @@ export default function App() {
           </div>
           <div className="mobile-feedback">
             {cursor > 0 && <LossTrend runs={runs} cursor={cursor} />}
-            <span>{cursor === 0 ? "Run to move downhill; Step shows one update." : `Loss ${fmt(current?.loss)} after ${current?.iteration} updates.`}</span>
+            <span>{cursor === 0 ? "Run the optimizer or take one Step." : `Loss ${fmt(current?.loss)} after ${current?.iteration} updates.`}</span>
           </div>
           <LandscapeCanvas
             objective={objective}
@@ -372,7 +372,7 @@ export default function App() {
                   {config.optimizer === "gd"
                     ? "θₜ₊₁ = θₜ − αgₜ"
                     : config.optimizer === "momentum"
-                      ? "vₜ₊₁ = βvₜ − αgₜ; θₜ₊₁ = θₜ + vₜ₊₁"
+                      ? "vₜ₊₁ = βvₜ − αgₜ, θₜ₊₁ = θₜ + vₜ₊₁"
                       : "θₜ₊₁ = θₜ − αm̂ₜ / (√v̂ₜ + ε)"}
                 </p>
                 {current?.dx !== undefined && (
@@ -381,7 +381,7 @@ export default function App() {
                     {fmt(current.x + current.dx)}. Gradient x:{" "}
                     {fmt(current.gradX)}
                     {config.noise > 0
-                      ? `; after noise: ${fmt(current.noisyGradX)}`
+                      ? `, after noise: ${fmt(current.noisyGradX)}`
                       : ""}
                     .
                   </p>
@@ -392,7 +392,7 @@ export default function App() {
         </section>
           <section className="results" aria-label="Experiment results">
             <p className="comparison-reading" aria-label="Comparison finding">{comparisonReading}</p>
-            {runs.length > 1 && <p className="comparison-scope">{objective.name} · start ({config.startPoint.x}, {config.startPoint.y}). These settings and this iteration only; equal rates do not mean equal tuning.</p>}
+            {runs.length > 1 && <p className="comparison-scope">{objective.name} · start ({config.startPoint.x}, {config.startPoint.y}). This comparison uses the settings and iteration shown. Equal rates do not mean equal tuning.</p>}
             <LossComparison runs={runs} cursor={cursor} />
             <div>
               <p className="result-label">Current run</p>
@@ -413,7 +413,7 @@ export default function App() {
             </div>
           <section className="saved-runs" aria-label="Saved comparisons">
             <h2>Saved comparisons</h2>
-            <p>Saving keeps the settings, not a frozen endpoint. All paths replay together; changing a setting restarts their shared clock.</p>
+            <p>Saved runs keep their settings. All paths replay together. Changing a setting restarts playback.</p>
             <p>{retained.length} of 2 saved · current run also shown</p>
             {retained.map((run) => <div className="saved-run" key={run.key}>
               <span style={{ color: COLORS[run.slot] }}>{runLabel(run.config)}</span>
@@ -525,7 +525,7 @@ export default function App() {
                       {r.current ? "Current" : "Saved"}
                     </th>
                     <td>{runLabel(r.config)}</td>
-                    <td>{p?.iteration ?? "—"}</td>
+                    <td>{p?.iteration ?? "N/A"}</td>
                     <td>{fmt(p?.loss)}</td>
                     <td>{fmt(p?.gradNorm)}</td>
                     <td>{fmt(s.minimumDistance)}</td>
@@ -605,7 +605,7 @@ function LossComparison({ runs, cursor }) {
   return (
     <figure ref={chartRef}>
       <figcaption>Loss over iteration · log(1 + loss)</figcaption>
-      {runs.length > 1 && <p className="comparison-clock">All runs at iteration {cursor}; stopped runs keep their last point.</p>}
+      {runs.length > 1 && <p className="comparison-clock">All runs at iteration {cursor}. Stopped runs keep their last point.</p>}
       <svg
         viewBox={`0 0 ${W} ${H}`}
         role="img"
@@ -672,7 +672,7 @@ function LossTrend({ runs, cursor }) {
   const high = Math.max(1, ...traces.flat().map(point => Math.log1p(Math.max(0, point.loss))));
   return <figure className="loss-trend">
     <figcaption>Loss trend</figcaption>
-    <svg viewBox="0 0 120 32" role="img" aria-label={`Loss trend through iteration ${cursor}; full chart below`}>
+    <svg viewBox="0 0 120 32" role="img" aria-label={`Loss trend through iteration ${cursor}. Full chart below`}>
       {traces.map((trace, i) => <g key={runs[i].key}><polyline fill="none" stroke={COLORS[runs[i].slot]} strokeWidth="2"
         strokeDasharray={runs[i].slot === 1 ? "6 3" : runs[i].slot === 2 ? "2 2" : undefined}
         points={trace.map(point => `${2 + point.iteration / Math.max(1, cursor) * 116},${30 - Math.log1p(Math.max(0, point.loss)) / high * 28}`).join(" ")} />
